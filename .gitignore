@@ -4,6 +4,8 @@
 __pycache__/
 *.pyc
 logs/
-swedbank_*.xlsx
+*_data_*.xlsx
+pension_data_combined_*.xlsx
+*_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].xlsx
 ~$*.xlsx
 com.pensionscraper*.plist

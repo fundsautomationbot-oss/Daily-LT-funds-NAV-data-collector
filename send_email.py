@@ -40,7 +40,7 @@ RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL", "vytikmerk@gmail.com")
 
 
 def get_latest_excel_file():
-    files = sorted(Path(".").glob("swedbank_pension_data_combined_*.xlsx"))
+    files = sorted(Path(".").glob("pension_data_combined_*.xlsx"))
     if not files:
         return None
     return max(files, key=lambda path: path.stat().st_mtime)
