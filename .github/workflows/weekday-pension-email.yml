@@ -1,0 +1,69 @@
+name: Weekday Pension Email
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1-5"
+    - cron: "0 5 * * 1-5"
+
+jobs:
+  run-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GMAIL_USER: ${{ secrets.GMAIL_USER }}
+      GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+      RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Decide whether this scheduled run should execute
+        id: schedule_gate
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          local_hour="$(TZ=Europe/Vilnius date +%H)"
+          local_minute="$(TZ=Europe/Vilnius date +%M)"
+          local_weekday="$(TZ=Europe/Vilnius date +%u)"
+
+          if [[ "$local_weekday" -le 5 && "$local_hour" == "07" && "$local_minute" == "00" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping. Local Europe/Vilnius time is $(TZ=Europe/Vilnius date '+%Y-%m-%d %H:%M:%S %Z')."
+          fi
+
+      - name: Create virtual environment
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Run scraper pipeline
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          python run_daily_pipeline.py
+
+      - name: Upload generated workbook
+        if: steps.schedule_gate.outputs.run == 'true' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pension-workbook
+          path: swedbank_pension_data_combined_*.xlsx
+          if-no-files-found: error
