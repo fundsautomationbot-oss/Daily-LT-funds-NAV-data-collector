@@ -66,21 +66,25 @@ class ArteaPensionsScraper(BaseScraper):
     def dismiss_cookie_modal(self, page):
         """Dismiss OneTrust modal/panel that can block clicks."""
         selectors = [
-            "#onetrust-reject-all-handler",
-            "#onetrust-accept-btn-handler",
             "button:has-text('Leisti visus')",
+            "#onetrust-accept-btn-handler",
             "button:has-text('Patvirtinti pasirinkimus')",
+            "#onetrust-reject-all-handler",
             "button:has-text('Uždaryti')",
             ".onetrust-close-btn-handler",
         ]
 
-        for _ in range(6):
+        for _ in range(3):
             for selector in selectors:
                 try:
-                    page.locator(selector).first.click(timeout=1500, force=True)
+                    btn = page.locator(selector).first
+                    if btn.count() > 0:
+                        btn.click(timeout=2000, force=True)
+                        page.wait_for_timeout(200)
+                        return
                 except Exception:
                     pass
-            page.wait_for_timeout(250)
+            page.wait_for_timeout(300)
 
     def extract_first_match(self, text: str, pattern: str) -> str:
         match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -103,25 +107,25 @@ class ArteaPensionsScraper(BaseScraper):
                     continue
 
                 try:
-                    opener.wait_for(state="visible", timeout=10000)
-                    opener.click(timeout=10000, force=True)
-                    page.wait_for_timeout(450)
+                    opener.wait_for(state="visible", timeout=8000)
+                    opener.click(timeout=8000, force=True)
+                    page.wait_for_timeout(400)
                     return
                 except Exception:
                     continue
 
             # If Cloudflare/anti-bot interstitial appears, wait a bit and retry.
             try:
-                body_text = page.inner_text("body", timeout=4000).lower()
+                body_text = page.inner_text("body", timeout=3000).lower()
                 if "just a moment" in body_text or "checking your browser" in body_text:
-                    page.wait_for_timeout(5000)
+                    page.wait_for_timeout(3000)
             except Exception:
                 pass
 
             if attempt < 3:
                 try:
-                    page.reload(wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(2000)
+                    page.reload(wait_until="domcontentloaded", timeout=20000)
+                    page.wait_for_timeout(1500)
                 except Exception:
                     pass
 
@@ -153,9 +157,12 @@ class ArteaPensionsScraper(BaseScraper):
         if locator.count() == 0:
             return False
 
-        locator.first.click(timeout=10000)
-        page.wait_for_timeout(2300)
-        return True
+        try:
+            locator.first.click(timeout=8000)
+            page.wait_for_timeout(1200)
+            return True
+        except Exception:
+            return False
 
     def extract_metrics(self, page, fund_name: str) -> dict:
         text = self.normalize_text(page)
@@ -171,8 +178,12 @@ class ArteaPensionsScraper(BaseScraper):
         results = []
 
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(2000)
-        self.dismiss_cookie_modal(page)
+        page.wait_for_timeout(1500)
+        
+        # Aggressively dismiss cookie modal before doing anything else
+        for _ in range(3):
+            self.dismiss_cookie_modal(page)
+            page.wait_for_timeout(200)
 
         fund_names = self.discover_fund_names(page)
         print(f"Detected {len(fund_names)} Artea funds")
