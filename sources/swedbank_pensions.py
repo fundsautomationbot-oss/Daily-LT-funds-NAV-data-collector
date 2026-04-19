@@ -39,11 +39,15 @@ class SwedBankPerformanceScraper(BaseScraper):
                 continue
             
             try:
+                fund_name = cells[1].inner_text().strip()
+                if "tradicin" in fund_name.lower():
+                    continue
                 results.append({
-                    "Fund name": cells[1].inner_text().strip(),
+                    "Fund name": fund_name,
                     "Date": cells[3].inner_text().strip(),
                     "GAV": cells[4].inner_text().strip(),
                 })
+
             except Exception:
                 continue
         

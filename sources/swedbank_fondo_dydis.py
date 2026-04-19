@@ -65,6 +65,9 @@ class SwedBankFundSizesScraper(BaseScraper):
                     continue
                 
                 fund_name = cells[1].inner_text().strip()
+                if "tradicin" in fund_name.lower():
+                    print(f"[{index+1}/{len(fund_rows)}] Skipping traditional fund: {fund_name}")
+                    continue
                 print(f"[{index+1}/{len(fund_rows)}] Opening fund: {fund_name}")
                 
                 # Click the link inside the fund name cell
