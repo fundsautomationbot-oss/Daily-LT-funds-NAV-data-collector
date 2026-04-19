@@ -65,5 +65,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pension-workbook
-          path: swedbank_pension_data_combined_*.xlsx
+          path: pension_data_combined_*.xlsx
           if-no-files-found: error
