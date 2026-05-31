@@ -73,21 +73,21 @@ class ArteaPensionsScraper(BaseScraper):
         """Dismiss OneTrust modal/panel that can block clicks."""
         # Use JavaScript to aggressively dismiss and hide all consent modals
         page.evaluate("""() => {
-            // Try to click accept button
+            // Try to click accept button - use valid CSS selectors only
             const buttons = [
-                document.querySelector("button[id*='accept']"),
-                document.querySelector("button:has-text('Leisti visus')"),
-                Array.from(document.querySelectorAll('button')).find(b => 
-                    b.innerText.includes('Leisti') || b.innerText.includes('Accept')
-                ),
                 document.getElementById('onetrust-accept-btn-handler'),
                 document.querySelector('.onetrust-close-btn-handler'),
                 document.querySelector('[data-testid="cookie-accept-button"]'),
+                document.querySelector("button[id*='accept']"),
+                // Find button by text content (without :has-text which is Playwright-only)
+                Array.from(document.querySelectorAll('button')).find(b => 
+                    (b.innerText || '').includes('Leisti') || (b.innerText || '').includes('Accept') || (b.innerText || '').includes('Patvirt')
+                ),
             ].filter(Boolean);
             
             for (let btn of buttons) {
                 try {
-                    btn?.click?.();
+                    btn.click();
                 } catch(e) {}
             }
             
@@ -98,10 +98,13 @@ class ArteaPensionsScraper(BaseScraper):
                 overlay.style.display = 'none';
                 overlay.style.visibility = 'hidden';
                 overlay.style.zIndex = '-9999';
+                overlay.style.pointerEvents = 'none';
             }
             
             // Remove modal from DOM if still present
-            document.getElementById('onetrust-consent-sdk')?.remove();
+            try {
+                document.getElementById('onetrust-consent-sdk')?.remove();
+            } catch(e) {}
         }""")
         page.wait_for_timeout(300)
 
@@ -162,9 +165,8 @@ class ArteaPensionsScraper(BaseScraper):
             debug_info = page.evaluate("""() => {
                 return {
                     hasOverlay: !!document.querySelector('.onetrust-pc-dark-filter'),
-                    overlayDisplay: document.querySelector('.onetrust-pc-dark-filter')?.style.display,
                     hasSelector: !!document.querySelector('.custom-select-opener'),
-                    pageText: document.body.innerText.substring(0, 200)
+                    bodyText: document.body.innerText.substring(0, 300)
                 };
             }""")
             raise RuntimeError(
