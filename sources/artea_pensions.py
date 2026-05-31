@@ -9,9 +9,10 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 try:
-    from playwright_stealth import stealth
+    from playwright_stealth import stealth, stealth_sync
 except ImportError:
     stealth = None
+    stealth_sync = None
 
 # Add parent directory to path so we can import base_scraper
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -53,7 +54,6 @@ class ArteaPensionsScraper(BaseScraper):
                 "--disable-dev-shm-usage",  # Fixes issues in low-memory environments
                 "--no-sandbox",  # Required in containers
                 "--disable-gpu",
-                "--disable-web-resources",  # Block unnecessary resources
             ],
         )
         context = self.browser.new_context(
@@ -69,14 +69,20 @@ class ArteaPensionsScraper(BaseScraper):
         self.page.set_default_timeout(45000)
         
         # Apply stealth measures if available
-        if stealth:
+        if stealth_sync:
+            print("  Applying Playwright stealth_sync measures...")
+            stealth_sync(self.page)
+        elif stealth:
             print("  Applying Playwright stealth measures...")
             stealth(self.page)
         else:
             print("  Warning: playwright-stealth not installed or import failed. Install with: pip install playwright-stealth")
         
         self.page.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+            "Object.defineProperty(navigator, 'languages', {get: () => ['lt-LT','lt','en-US','en']});"
+            "Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});"
+            "window.navigator.chrome = { runtime: {} };"
         )
         return self.page
 
@@ -141,7 +147,7 @@ class ArteaPensionsScraper(BaseScraper):
         
         # Check for Cloudflare challenge page
         print("    Checking for Cloudflare security challenge...")
-        page.wait_for_timeout(2000)  # Give Cloudflare time to load
+        page.wait_for_timeout(5000)  # Give Cloudflare time to load dynamic content
         
         cf_challenge = page.evaluate("""() => {
             const text = document.body.innerText || '';
@@ -152,7 +158,7 @@ class ArteaPensionsScraper(BaseScraper):
         
         if cf_challenge:
             print("    ⚠️  Cloudflare security challenge detected!")
-            print("    Waiting up to 30s for Cloudflare to verify...")
+            print("    Waiting up to 60s for Cloudflare to verify...")
             try:
                 # Wait for the challenge to complete by checking if the page content changes
                 page.wait_for_function("""() => {
@@ -160,7 +166,7 @@ class ArteaPensionsScraper(BaseScraper):
                     return !text.includes('Saugumo patvirtinimo') && 
                            !text.includes('Ray ID') &&
                            document.querySelectorAll('.custom-select-opener').length > 0;
-                }""", timeout=30000)
+                }""", timeout=60000)
                 print("    ✓ Cloudflare challenge completed")
             except Exception as e:
                 print(f"    ✗ Cloudflare challenge not bypassed: {e}")
