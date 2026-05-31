@@ -49,15 +49,21 @@ def run_step(script_path):
     
     Args:
         script_path: Full path to the script to run
+
+    Returns:
+        True if the step completed successfully, False otherwise.
     """
     command = [str(get_python_executable()), str(script_path)]
     print(f"\n=== Running {script_path.name} ===")
     try:
         result = subprocess.run(command, cwd=BASE_DIR, check=False, timeout=180)
         if result.returncode != 0:
-            raise RuntimeError(f"{script_path.name} failed with exit code {result.returncode}")
+            print(f"{script_path.name} failed with exit code {result.returncode}")
+            return False
+        return True
     except subprocess.TimeoutExpired:
-        raise RuntimeError(f"{script_path.name} timed out after 180 seconds")
+        print(f"{script_path.name} timed out after 180 seconds")
+        return False
 
 
 def main():
@@ -71,20 +77,27 @@ def main():
 
     # Step 1: Discover and run all scrapers
     scrapers = discover_scrapers()
+    failed_scrapers = []
     
     if not scrapers:
         print("Warning: No scrapers found in sources/ directory")
     else:
         print(f"Found {len(scrapers)} scraper(s): {', '.join(s.name for s in scrapers)}")
-        
         for scraper_path in scrapers:
-            run_step(scraper_path)
+            success = run_step(scraper_path)
+            if not success:
+                failed_scrapers.append(scraper_path.name)
 
     # Step 2: Merge data from all sources
     print("\n=== Running merge_data.py ===")
     merge_script = BASE_DIR / "merge_data.py"
     if merge_script.exists():
-        run_step(merge_script)
+        merge_success = run_step(merge_script)
+        if not merge_success:
+            print("Merge step failed. Skipping email sending.")
+            if failed_scrapers:
+                print(f"Failed scrapers: {', '.join(failed_scrapers)}")
+            sys.exit(1)
     else:
         print(f"Warning: {merge_script} not found")
 
@@ -92,9 +105,18 @@ def main():
     print("\n=== Running send_email.py ===")
     email_script = BASE_DIR / "send_email.py"
     if email_script.exists():
-        run_step(email_script)
+        email_success = run_step(email_script)
+        if not email_success:
+            print("Email step failed.")
+            if failed_scrapers:
+                print(f"Failed scrapers: {', '.join(failed_scrapers)}")
+            sys.exit(1)
     else:
         print(f"Warning: {email_script} not found")
+
+    if failed_scrapers:
+        print(f"Workflow completed with failures in: {', '.join(failed_scrapers)}")
+        sys.exit(1)
 
     print(f"Workflow completed at {datetime.now().isoformat(timespec='seconds')}")
 

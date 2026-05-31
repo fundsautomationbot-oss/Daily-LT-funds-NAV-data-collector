@@ -70,9 +70,14 @@ class GoindexPensionsScraper(BaseScraper):
 
             # Goindex table can render after initial load on CI runners.
             try:
-                page.wait_for_selector("table td", timeout=30000)
+                page.wait_for_load_state("networkidle", timeout=60000)
             except Exception:
                 pass
+
+            try:
+                page.wait_for_selector("table", timeout=60000)
+            except Exception:
+                print("  Warning: table selector did not appear within 60s")
 
             tables = page.query_selector_all("table")
             print(f"  Attempt {attempt}: found {len(tables)} table(s)")

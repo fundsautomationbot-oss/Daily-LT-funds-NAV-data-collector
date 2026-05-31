@@ -54,6 +54,7 @@ jobs:
           source .venv/bin/activate
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+          python -c "import playwright_stealth; print('playwright-stealth installed')" || python -m pip install playwright-stealth==2.0.3
           python -m playwright install --with-deps chromium
 
       - name: Verify environment variables
@@ -146,3 +147,4 @@ jobs:
           echo "Checking Playwright installation..."
           source .venv/bin/activate
           python -c "import playwright; print(f'Playwright version: {playwright.__version__}')" || echo "Playwright not properly installed"
+          python -c "import playwright_stealth; print('playwright-stealth imported')" || echo "playwright-stealth not installed or import failed"
