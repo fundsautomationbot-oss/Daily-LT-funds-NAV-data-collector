@@ -8,6 +8,10 @@ import sys
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
+try:
+    from playwright_stealth import stealth_sync
+except ImportError:
+    stealth_sync = None
 
 # Add parent directory to path so we can import base_scraper
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -49,15 +53,28 @@ class ArteaPensionsScraper(BaseScraper):
                 "--disable-dev-shm-usage",  # Fixes issues in low-memory environments
                 "--no-sandbox",  # Required in containers
                 "--disable-gpu",
+                "--disable-web-resources",  # Block unnecessary resources
             ],
         )
         context = self.browser.new_context(
             user_agent=self.USER_AGENT,
             locale="lt-LT",
             timezone_id="Europe/Vilnius",
+            extra_http_headers={
+                "Accept-Language": "lt-LT,lt;q=0.9,en;q=0.8",
+                "Referer": "https://www.google.com/",
+            },
         )
         self.page = context.new_page()
         self.page.set_default_timeout(30000)
+        
+        # Apply stealth measures if available
+        if stealth_sync:
+            print("  Applying Playwright stealth measures...")
+            stealth_sync(self.page)
+        else:
+            print("  Warning: playwright-stealth not installed. Install with: pip install playwright-stealth")
+        
         self.page.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
@@ -122,11 +139,32 @@ class ArteaPensionsScraper(BaseScraper):
         """Wait for the page JS to finish rendering the custom-select widget."""
         print("    Waiting for page to stabilize...")
         
-        # Step 0: Wait for network to be idle (ensures JS has executed)
-        try:
-            page.wait_for_load_state("networkidle", timeout=15000)
-        except Exception as e:
-            print(f"    Warning: networkidle timeout (page may still load): {e}")
+        # Check for Cloudflare challenge page
+        print("    Checking for Cloudflare security challenge...")
+        page.wait_for_timeout(2000)  # Give Cloudflare time to load
+        
+        cf_challenge = page.evaluate("""() => {
+            const text = document.body.innerText || '';
+            return text.includes('Saugumo patvirtinimo') || 
+                   text.includes('security challenge') ||
+                   text.includes('Ray ID');
+        }""")
+        
+        if cf_challenge:
+            print("    ⚠️  Cloudflare security challenge detected!")
+            print("    Waiting up to 30s for Cloudflare to verify...")
+            try:
+                # Wait for the challenge to complete by checking if the page content changes
+                page.wait_for_function("""() => {
+                    const text = document.body.innerText || '';
+                    return !text.includes('Saugumo patvirtinimo') && 
+                           !text.includes('Ray ID') &&
+                           document.querySelectorAll('.custom-select-opener').length > 0;
+                }""", timeout=30000)
+                print("    ✓ Cloudflare challenge completed")
+            except Exception as e:
+                print(f"    ✗ Cloudflare challenge not bypassed: {e}")
+                raise RuntimeError("Cloudflare security challenge could not be bypassed. Try adding playwright-stealth: pip install playwright-stealth")
         
         # Step 1: Aggressively dismiss cookie modal
         print("    Dismissing cookie consent modal...")
