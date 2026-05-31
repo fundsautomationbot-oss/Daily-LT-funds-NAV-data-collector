@@ -53,9 +53,11 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -r requirements.txt
-          python -m pip install playwright-stealth==2.0.3
-          python -m pip list
+          python -m pip install --no-cache-dir -r requirements.txt
+          python -m pip install --no-cache-dir --force-reinstall playwright-stealth==2.0.3
+          python -m pip show playwright-stealth
+          python -m pip list | grep playwright-stealth || true
+          python -m pip list | grep playwright || true
           python -m playwright install --with-deps chromium
 
       - name: Verify environment variables
@@ -100,6 +102,13 @@ jobs:
           echo "Checking for generated Excel files..."
           ls -lah pension_data_combined_*.xlsx || echo "ERROR: No merged Excel file found"
           ls -lah *_data_*.xlsx | head -10 || echo "No scraper output files found"
+
+      - name: Verify playwright-stealth import
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          python -c "import playwright_stealth; print('playwright-stealth import ok')" || echo "playwright-stealth import FAILED"
 
       - name: Upload generated workbook
         if: steps.schedule_gate.outputs.run == 'true' && success()
