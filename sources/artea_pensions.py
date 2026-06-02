@@ -134,16 +134,28 @@ class ArteaPensionsScraper(BaseScraper):
     def wait_for_page_ready(self, page):
         """Wait for the page JS to finish rendering the custom-select widget."""
         # Step 1: accept cookies so the widget is not blocked by the modal overlay
-        self.dismiss_cookie_modal(page)
+        print("    Dismissing cookie consent modal...")
+        for attempt in range(3):
+            self.dismiss_cookie_modal(page)
+            page.wait_for_timeout(800)
         
         # Step 2: wait for the actual custom-select element to exist in DOM
-        # This is the key step missing in CI — the widget renders AFTER cookies accepted
+        # Retry multiple times with increasing waits for CI environments
         print("    Waiting for fund selector to appear in DOM...")
-        try:
-            page.wait_for_selector(".custom-select-opener", timeout=30000)
-            print("    ✓ Fund selector found in DOM")
-        except Exception:
-            raise RuntimeError("Fund selector never appeared in DOM after 30s")
+        for attempt in range(5):
+            try:
+                page.wait_for_selector(".custom-select-opener", timeout=15000)
+                print("    ✓ Fund selector found in DOM")
+                break
+            except Exception as e:
+                if attempt < 4:
+                    print(f"    Attempt {attempt + 1}/5: Selector not found, retrying in 2s...")
+                    page.wait_for_timeout(2000)
+                else:
+                    # Last attempt failed, throw error with debug info
+                    debug_text = page.evaluate("() => document.body.innerText.substring(0, 500)")
+                    print(f"    DEBUG page text: {debug_text[:200]}")
+                    raise RuntimeError(f"Fund selector never appeared in DOM after 5 attempts: {e}")
         
         # Step 3: make sure cookie overlay is fully gone
         try:
