@@ -18,7 +18,7 @@ from base_scraper import BaseScraper
 class ArteaPensionsScraper(BaseScraper):
     """Scrapes Artea II pillar pension funds from the expandable selector."""
 
-    URL = "https://www.artea.lt/lt/privatiems/pensija/ii-pakopos-pensija/artea-pensiju-turto-issaugojimo-fondas"
+    URL = "https://www.artea.lt/lt/privatiems/pensija/ii-pakopos-pensija/artea-pensija-1996-2002-index-plus"
     USER_AGENT = (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
