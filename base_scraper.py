@@ -3,6 +3,7 @@
 Base class for pension fund scrapers.
 Provides shared functionality for browser setup, error handling, and file output.
 """
+import os
 from playwright.sync_api import sync_playwright
 import pandas as pd
 from datetime import datetime
@@ -47,11 +48,15 @@ class BaseScraper(ABC):
         """
         pass
     
+    def _is_headless(self) -> bool:
+        return os.getenv("PLAYWRIGHT_HEADLESS", "true").strip().lower() not in ("false", "0", "no", "off")
+
     def setup_browser(self):
         """Initialize browser and page."""
-        print("Starting browser...")
+        headless_mode = self._is_headless()
+        print(f"Starting browser (headless={headless_mode})...")
         self._playwright = sync_playwright().start()
-        self.browser = self._playwright.chromium.launch(headless=True)
+        self.browser = self._playwright.chromium.launch(headless=headless_mode)
         self.context = self.browser.new_context()
         self.page = self.context.new_page()
         self.page.set_default_timeout(45000)

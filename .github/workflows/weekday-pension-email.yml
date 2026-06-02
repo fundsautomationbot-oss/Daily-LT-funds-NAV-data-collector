@@ -17,9 +17,10 @@ jobs:
       GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
       RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
 
-      # Headless runtime flags
+      # Browser runtime flags
       CI: "true"
       PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
+      PLAYWRIGHT_HEADLESS: "false"
 
     steps:
       - name: Checkout repository
@@ -54,6 +55,8 @@ jobs:
         if: steps.schedule_gate.outputs.run == 'true'
         shell: bash
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip setuptools wheel
@@ -77,7 +80,7 @@ jobs:
         shell: bash
         run: |
           source .venv/bin/activate
-          python main_wrapper.py
+          xvfb-run -a python main_wrapper.py
 
       - name: Upload logs and generated files
         if: steps.schedule_gate.outputs.run == 'true' && always()

@@ -3,6 +3,7 @@
 Artea pension funds scraper.
 Handles a clickable expandable fund selector and extracts key fund metrics.
 """
+import os
 import re
 import sys
 from pathlib import Path
@@ -43,7 +44,7 @@ class ArteaPensionsScraper(BaseScraper):
         print("Starting browser...")
         self._playwright = sync_playwright().start()
         self.browser = self._playwright.chromium.launch(
-            headless=True,
+            headless=self._is_headless(),
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",  # Fixes issues in low-memory environments
