@@ -61,7 +61,8 @@ class LuminorPensionsScraper(BaseScraper):
         return self.page
 
     def get_url(self) -> str:
-        return "https://www.luminor.lt/lt/pensiju-fondai"
+        # New Luminor layout moved to /lt/rinkis-fonda; keep old URL as fallback
+        return "https://www.luminor.lt/lt/rinkis-fonda"
 
     def dismiss_cookie_modal(self, page):
         for sel in [
@@ -79,27 +80,79 @@ class LuminorPensionsScraper(BaseScraper):
     def scrape_data(self, page) -> list:
         results = []
 
+        # First attempt: new layout uses query parameters to load each fund's live JS state.
+        try:
+            self.dismiss_cookie_modal(page)
+            options = page.evaluate(
+                '''Array.from(document.querySelectorAll('select#edit-fund option')).map(option => ({
+                    value: option.value,
+                    title: option.innerText.trim(),
+                }))'''
+            )
+            found = 0
+            for option in options:
+                title = option.get('title')
+                if title in EXCLUDED_FUNDS:
+                    continue
+
+                fund_url = f"{self.get_url()}?fund_type=pension&fund={option.get('value')}&currency=eur&period=3year"
+                page.goto(fund_url, wait_until='networkidle', timeout=120000)
+                self.dismiss_cookie_modal(page)
+
+                fund_rates = page.evaluate('window.Drupal.settings.dnbPensionFunds.fundRates')
+                fund_history = page.evaluate('window.Drupal.settings.dnbPensionFunds.fundRatesHistory')
+                if not fund_rates or not fund_rates.get('name_alias_lt'):
+                    continue
+
+                data_date = None
+                if isinstance(fund_history, dict):
+                    date_keys = [
+                        key
+                        for key in fund_history.keys()
+                        if re.match(r'^\d{4}-\d{2}-\d{2}$', key)
+                    ]
+                    if date_keys:
+                        data_date = max(date_keys)
+
+                unit_value = fund_rates.get('unit_price_eur') or fund_rates.get('unit_price')
+                net_assets = fund_rates.get('nav_eur') or fund_rates.get('nav')
+                if unit_value is None and net_assets is None:
+                    continue
+
+                results.append({
+                    "Fund name": fund_rates.get('name_alias_lt', title),
+                    "Data": data_date,
+                    "Vieneto vertė": unit_value,
+                    "Grynieji aktyvai": net_assets,
+                })
+                found += 1
+
+            if found:
+                print(f"  Parsed {found} funds from Luminor live fund selector")
+                return results
+        except Exception as e:
+            print("  Runtime selector parse failed:", e)
+
+        # Fallback: legacy table scraping (old layout)
         rows = []
-        # Target the specific table with aria-describedby for more robust selection.
         table_selector = 'table[aria-describedby="funds-table-label"] tbody tr'
-        for attempt in range(1, 5):
+        for attempt in range(1, 4):
             page.wait_for_load_state("domcontentloaded")
             self.dismiss_cookie_modal(page)
 
             try:
-                page.wait_for_selector(table_selector, timeout=45000)
+                page.wait_for_selector(table_selector, timeout=30000)
             except Exception:
                 pass
 
             rows = page.query_selector_all(table_selector)
-            print(f"  Attempt {attempt}: found {len(rows)} table rows")
+            print(f"  Attempt {attempt}: found {len(rows)} table rows (legacy)")
 
             if len(rows) >= 6:
                 break
 
-            if attempt < 4:
-                print("  Luminor table not ready yet, retrying...")
-                page.wait_for_timeout(3000)
+            if attempt < 3:
+                page.wait_for_timeout(2000)
                 try:
                     page.reload(wait_until="domcontentloaded", timeout=60000)
                 except Exception:
@@ -116,8 +169,6 @@ class LuminorPensionsScraper(BaseScraper):
             pass
 
         print(f"  Data date: {data_date}")
-
-        print(f"  Found {len(rows)} table rows")
 
         for row in rows:
             cells = row.query_selector_all("td")
