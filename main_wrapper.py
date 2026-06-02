@@ -90,23 +90,15 @@ def run_pipeline(logger: logging.Logger) -> tuple[bool, str]:
         command,
         cwd=BASE_DIR,
         text=True,
-        capture_output=True,
         check=False,
     )
 
-    stdout = proc.stdout or ""
-    stderr = proc.stderr or ""
-
-    if stdout:
-        logger.info("Pipeline stdout:\n%s", stdout.strip())
-    if stderr:
-        logger.warning("Pipeline stderr:\n%s", stderr.strip())
-
     if proc.returncode == 0:
-        return True, stdout + "\n" + stderr
+        logger.info("Pipeline succeeded")
+        return True, ""
 
     logger.error("Pipeline failed with exit code %s", proc.returncode)
-    return False, stdout + "\n" + stderr
+    return False, ""
 
 
 def main() -> int:

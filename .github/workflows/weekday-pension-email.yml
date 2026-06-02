@@ -3,9 +3,9 @@ name: Daily Pension Automation
 on:
   workflow_dispatch:
   schedule:
-    # 07:00 Europe/Vilnius across DST changes
-    - cron: "0 4 * * *"
-    - cron: "0 5 * * *"
+    # 07:00 Europe/Vilnius on weekdays only (Monday-Friday)
+    - cron: "0 4 * * 1-5"
+    - cron: "0 5 * * 1-5"
 
 jobs:
   run-automation:
@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           source .venv/bin/activate
-          python -u main_wrapper.py
+          python main_wrapper.py
 
       - name: Upload logs and generated files
         if: steps.schedule_gate.outputs.run == 'true' && always()
