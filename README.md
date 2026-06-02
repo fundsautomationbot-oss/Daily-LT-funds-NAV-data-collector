@@ -142,7 +142,9 @@ See `requirements.txt` for exact versions.
 - Check filename is in `sources/` folder
 - Verify filename doesn't start with `_`
 - Run `python run_daily_pipeline.py` to see discovery output
-
+w### API-backed Artea data
+- The Artea scraper now uses `api.sb.lt/funds-api/Prices/History` for latest fund data when available
+- If the API path fails, it falls back to the browser scraper
 ### Merge fails with "no Fund name column"
 - Ensure your scraper's output has a `"Fund name"` column
 - Adjust merge logic in `merge_data.py` if using different column names

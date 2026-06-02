@@ -3,11 +3,15 @@
 Artea pension funds scraper.
 Handles a clickable expandable fund selector and extracts key fund metrics.
 """
+import json
 import os
 import re
 import sys
+import urllib.request
+import urllib.parse
 from pathlib import Path
 
+import pandas as pd
 from playwright.sync_api import sync_playwright
 
 # Add parent directory to path so we can import base_scraper
@@ -31,10 +35,42 @@ class ArteaPensionsScraper(BaseScraper):
         ".custom-select-opener",
         "[role='combobox']",
     ]
+    API_HISTORY_URL = "https://api.sb.lt/funds-api/Prices/History"
+    FUND_CODE_MAP = {
+        "INV-03/09": "Artea pensija 2003-2009",
+        "INV-54/60": "Artea pensija 1954-1960",
+        "INV-61/67": "Artea pensija 1961-1967",
+        "INV-68/74": "Artea pensija 1968-1974",
+        "INV-75/81": "Artea pensija 1975-1981",
+        "INV-82/88": "Artea pensija 1982-1988",
+        "INV-89/95": "Artea pensija 1989-1995",
+        "INV-96/02": "Artea pensija 1996-2002",
+        "INV-TIPF": "Artea pensijų turto išsaugojimo fondas",
+    }
 
     def __init__(self):
         super().__init__("artea_pensions")
         self._playwright = None
+
+    def run(self):
+        try:
+            api_results = self.fetch_api_latest_data()
+            if api_results:
+                print("Using Artea API for latest fund data")
+                df = pd.DataFrame(api_results)
+                if df.empty:
+                    print("API returned no data; falling back to browser scraping.")
+                else:
+                    data_date = self._extract_data_date(df)
+                    filename = f"{self.source_name}_data_{data_date}.xlsx"
+                    filepath = self.save_to_excel(df, filename)
+                    if filepath:
+                        print(f"✅ Excel file created: {filename}")
+                    return filepath
+        except Exception as exc:
+            print(f"Artea API path failed: {exc}. Falling back to browser scraping.")
+
+        return super().run()
 
     def get_url(self) -> str:
         return self.URL
@@ -62,6 +98,43 @@ class ArteaPensionsScraper(BaseScraper):
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
         return self.page
+
+    def build_api_row(self, fund_code: str, record: dict) -> dict:
+        return {
+            "Fund name": self.FUND_CODE_MAP.get(fund_code, fund_code),
+            "Data": record.get("d"),
+            "Vieneto vertė": record.get("b"),
+            "Grynieji aktyvai": record.get("n"),
+        }
+
+    def fetch_history_latest(self, fund_code: str) -> dict:
+        query = urllib.parse.urlencode({"fundCode": fund_code})
+        url = f"{self.API_HISTORY_URL}?{query}"
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": self.USER_AGENT,
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            data = json.load(response)
+        if not data or not isinstance(data, list):
+            raise RuntimeError(f"Unexpected API response for {fund_code}")
+        return data[-1]
+
+    def fetch_api_latest_data(self) -> list:
+        results = []
+        for fund_code in self.FUND_CODE_MAP:
+            try:
+                latest = self.fetch_history_latest(fund_code)
+                if latest:
+                    results.append(self.build_api_row(fund_code, latest))
+                    print(f"Loaded latest data for {fund_code} via API")
+            except Exception as exc:
+                print(f"API fetch failed for {fund_code}: {exc}")
+                return []
+        return results
 
     def cleanup_browser(self):
         if self.browser:
