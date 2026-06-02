@@ -81,13 +81,45 @@ class BaseScraper(ABC):
             print(f"Starting browser (headless={headless_mode})...")
 
         self._playwright = sync_playwright().start()
-        launch_options = {"headless": headless_mode}
+        # Provide robust launch args for CI environments (xvfb, no-sandbox, etc.)
+        launch_options = {
+            "headless": headless_mode,
+            "args": [
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+                "--disable-gpu",
+            ],
+        }
         if proxy_settings:
             launch_options["proxy"] = proxy_settings
+
         self.browser = self._playwright.chromium.launch(**launch_options)
-        self.context = self.browser.new_context()
+
+        # Default context options to make pages appear like real users
+        context_args = {
+            "user_agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "locale": "lt-LT",
+            "timezone_id": "Europe/Vilnius",
+            "viewport": {"width": 1280, "height": 800},
+        }
+
+        self.context = self.browser.new_context(**context_args)
         self.page = self.context.new_page()
-        self.page.set_default_timeout(45000)
+        # Mask webdriver flag to reduce bot detection surface
+        try:
+            self.page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+        except Exception:
+            pass
+
+        # Longer default timeout for network-heavy pages in CI
+        self.page.set_default_timeout(int(os.getenv("PLAYWRIGHT_TIMEOUT_MS", "60000")))
         return self.page
     
     def cleanup_browser(self):

@@ -25,7 +25,8 @@ jobs:
       # Browser runtime flags
       CI: "true"
       PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
-      PLAYWRIGHT_HEADLESS: "false"
+      # Run Playwright in headless mode on GitHub Actions for reliability
+      PLAYWRIGHT_HEADLESS: "true"
 
     steps:
       - name: Checkout repository
@@ -96,4 +97,5 @@ jobs:
             logs/*.log
             *_data_*.xlsx
             pension_data_combined_*.xlsx
+            artifacts/**
           if-no-files-found: warn
