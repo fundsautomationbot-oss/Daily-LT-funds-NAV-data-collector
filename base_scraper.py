@@ -51,12 +51,40 @@ class BaseScraper(ABC):
     def _is_headless(self) -> bool:
         return os.getenv("PLAYWRIGHT_HEADLESS", "true").strip().lower() not in ("false", "0", "no", "off")
 
+    def _get_proxy_settings(self):
+        proxy_server = (
+            os.getenv("PLAYWRIGHT_PROXY_SERVER")
+            or os.getenv("HTTPS_PROXY")
+            or os.getenv("HTTP_PROXY")
+        )
+        if not proxy_server:
+            return None
+
+        proxy_settings = {"server": proxy_server}
+        proxy_username = os.getenv("PLAYWRIGHT_PROXY_USERNAME") or os.getenv("PROXY_USERNAME")
+        proxy_password = os.getenv("PLAYWRIGHT_PROXY_PASSWORD") or os.getenv("PROXY_PASSWORD")
+        if proxy_username or proxy_password:
+            proxy_settings["username"] = proxy_username or ""
+            proxy_settings["password"] = proxy_password or ""
+
+        return proxy_settings
+
     def setup_browser(self):
         """Initialize browser and page."""
         headless_mode = self._is_headless()
-        print(f"Starting browser (headless={headless_mode})...")
+        proxy_settings = self._get_proxy_settings()
+        if proxy_settings:
+            print(
+                f"Starting browser (headless={headless_mode}) with proxy={proxy_settings['server']}"
+            )
+        else:
+            print(f"Starting browser (headless={headless_mode})...")
+
         self._playwright = sync_playwright().start()
-        self.browser = self._playwright.chromium.launch(headless=headless_mode)
+        launch_options = {"headless": headless_mode}
+        if proxy_settings:
+            launch_options["proxy"] = proxy_settings
+        self.browser = self._playwright.chromium.launch(**launch_options)
         self.context = self.browser.new_context()
         self.page = self.context.new_page()
         self.page.set_default_timeout(45000)

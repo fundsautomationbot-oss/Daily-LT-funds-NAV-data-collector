@@ -17,6 +17,11 @@ jobs:
       GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
       RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
 
+      # Optional proxy support for cloud runners
+      PLAYWRIGHT_PROXY_SERVER: ${{ secrets.PLAYWRIGHT_PROXY_SERVER }}
+      PLAYWRIGHT_PROXY_USERNAME: ${{ secrets.PLAYWRIGHT_PROXY_USERNAME }}
+      PLAYWRIGHT_PROXY_PASSWORD: ${{ secrets.PLAYWRIGHT_PROXY_PASSWORD }}
+
       # Browser runtime flags
       CI: "true"
       PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright

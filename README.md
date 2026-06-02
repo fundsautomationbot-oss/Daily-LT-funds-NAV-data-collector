@@ -123,6 +123,9 @@ Deploy to GitHub Actions for hands-free daily runs:
    - `GMAIL_USER`
    - `GMAIL_PASSWORD`
    - `RECIPIENT_EMAIL`
+   - `PLAYWRIGHT_PROXY_SERVER` (optional, use if Artea blocks GitHub-hosted IPs)
+   - `PLAYWRIGHT_PROXY_USERNAME` (optional)
+   - `PLAYWRIGHT_PROXY_PASSWORD` (optional)
 3. Workflow runs at 07:00 EET weekdays
 
 ## Dependencies
