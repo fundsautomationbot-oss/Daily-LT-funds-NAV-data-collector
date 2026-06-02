@@ -89,8 +89,23 @@ class LuminorPensionsScraper(BaseScraper):
             found = 0
             for fund_id in LUMINOR_II_FUND_IDS:
                 fund_url = f"{self.get_url()}?fund_type=pension&fund={fund_id}&currency=eur&period=3year"
-                page.goto(fund_url, wait_until='networkidle', timeout=120000)
+                page.goto(fund_url, wait_until='domcontentloaded', timeout=90000)
                 self.dismiss_cookie_modal(page)
+                page.wait_for_timeout(1000)
+
+                try:
+                    page.wait_for_function(
+                        '''() => {
+                            return window.Drupal &&
+                                window.Drupal.settings &&
+                                window.Drupal.settings.dnbPensionFunds &&
+                                window.Drupal.settings.dnbPensionFunds.fundRates &&
+                                window.Drupal.settings.dnbPensionFunds.fundRates.name_alias_lt;
+                        }''',
+                        timeout=15000,
+                    )
+                except Exception:
+                    pass
 
                 fund_rates = page.evaluate('window.Drupal.settings.dnbPensionFunds.fundRates')
                 fund_history = page.evaluate('window.Drupal.settings.dnbPensionFunds.fundRatesHistory')
