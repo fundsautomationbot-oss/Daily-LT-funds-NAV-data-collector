@@ -9,20 +9,25 @@
   <div class="header">
     <div>
       <h1 class="title">Pension report history</h1>
-      <div class="meta">Choose a date range (maximum 14 days) to show downloadable reports.</div>
+      <div class="meta">Browse the last 14 generated reports, filter by date, and view or download the latest snapshots.</div>
     </div>
+    <div class="stats"><span id="result-count">Loading reports...</span></div>
   </div>
   <div class="report-filter">
-    <label>
+    <label class="filter-field">
       Start date
       <input id="start-date" type="date" />
     </label>
-    <label>
+    <label class="filter-field">
       End date
       <input id="end-date" type="date" />
     </label>
-    <p class="range-note">Showing the most recent 14 days by default.</p>
+    <label class="filter-field">
+      Search reports
+      <input id="search-input" type="search" placeholder="Search by file name" autocomplete="off" />
+    </label>
   </div>
+  <p class="range-note">Showing the most recent 14 days by default. Use search to narrow by file name.</p>
   <div class="range-warning" id="range-warning"></div>
   <ul class="report-list" id="report-list"></ul>
 </div></div>
@@ -37,6 +42,9 @@ function toISO(date) {
 function parseISO(value) {
   return new Date(value + "T00:00:00Z");
 }
+function normalizeQuery(value) {
+  return (value || '').trim().toLowerCase();
+}
 function clampDateRange(start, end) {
   const startDate = parseISO(start);
   const endDate = parseISO(end);
@@ -50,6 +58,7 @@ function clampDateRange(start, end) {
 function renderReports() {
   const start = document.getElementById('start-date').value;
   const end = document.getElementById('end-date').value;
+  const query = normalizeQuery(document.getElementById('search-input').value);
   const clamped = clampDateRange(start, end);
   if (clamped.start !== start) {
     document.getElementById('range-warning').textContent = 'Range limited to 14 days.';
@@ -57,16 +66,21 @@ function renderReports() {
   } else {
     document.getElementById('range-warning').textContent = '';
   }
-  const filtered = reports.filter(r => r.date >= clamped.start && r.date <= clamped.end);
+  const filtered = reports.filter(r => {
+    const fileText = (r.html + ' ' + r.xlsx).toLowerCase();
+    return r.date >= clamped.start && r.date <= clamped.end && fileText.includes(query);
+  });
+  document.getElementById('result-count').textContent = `${filtered.length} report${filtered.length === 1 ? '' : 's'} available`;
   const list = document.getElementById('report-list');
   list.innerHTML = filtered.length ? filtered.map(r => `
     <li class="report-card">
       <div class="report-summary">
         <strong>${r.date}</strong>
+        <div class="report-subtitle">${r.html}</div>
       </div>
       <div class="report-links">
-        <a class="link-pill" href="${r.html}">View HTML</a>
-        <a class="link-pill" href="${r.xlsx}" download>Download XLSX</a>
+        <a class="link-pill" href="${r.html}">Open</a>
+        <a class="link-pill" href="${r.xlsx}" download>Download</a>
       </div>
     </li>`).join('') : '<li class="report-empty">No reports match the selected range.</li>';
 }
@@ -86,6 +100,7 @@ function initIndex() {
   document.getElementById('end-date').max = latest;
   document.getElementById('start-date').addEventListener('change', renderReports);
   document.getElementById('end-date').addEventListener('change', renderReports);
+  document.getElementById('search-input').addEventListener('input', renderReports);
   renderReports();
 }
 document.addEventListener('DOMContentLoaded', initIndex);
