@@ -62,11 +62,11 @@ function renderReports() {
   list.innerHTML = filtered.length ? filtered.map(r => `
     <li class="report-card">
       <div class="report-summary">
-        <strong>${{r.date}}</strong>
+        <strong>${r.date}</strong>
       </div>
       <div class="report-links">
-        <a class="link-pill" href="${{r.html}}">View HTML</a>
-        <a class="link-pill" href="${{r.xlsx}}" download>Download XLSX</a>
+        <a class="link-pill" href="${r.html}">View HTML</a>
+        <a class="link-pill" href="${r.xlsx}" download>Download XLSX</a>
       </div>
     </li>`).join('') : '<li class="report-empty">No reports match the selected range.</li>';
 }
