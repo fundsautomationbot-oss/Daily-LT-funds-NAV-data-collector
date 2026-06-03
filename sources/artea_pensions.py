@@ -102,7 +102,9 @@ class ArteaPensionsScraper(BaseScraper):
         return {
             "Fund name": self.FUND_CODE_MAP.get(fund_code, fund_code),
             "Data": record.get("d"),
-            "Vieneto vertė": record.get("b"),
+            # Artea API returns both `p` (unit value) and `b` (internal normalized price).
+            # The expected fund unit value is the `p` field.
+            "Vieneto vertė": record.get("p") if record.get("p") is not None else record.get("b"),
             "Grynieji aktyvai": record.get("n"),
         }
 
