@@ -388,16 +388,40 @@ tr.provider td{background:linear-gradient(90deg,rgba(37,99,235,0.08),rgba(99,102
 </style>
 </head><body>
 <div class=\"wrap\"><div class=\"card\"> 
-    <div class=\"header\"> 
+    <div class="header"> 
         <div>
-            <h1 class=\"title\">Pension data {data_date}</h1>
-            <div class=\"meta\">Generated: {datetime.now().isoformat(timespec='seconds')}</div>
+            <h1 class="title">Pension data {data_date}</h1>
+            <div class="meta">Generated: {datetime.now().isoformat(timespec='seconds')}</div>
         </div>
-        <div><a class=\"download-btn\" href=\"{output_file}\" download>Download Excel</a></div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <input id="filter-input" placeholder="Filter funds…" aria-label="Filter funds" style="padding:8px 10px;border-radius:8px;border:1px solid rgba(15,23,42,0.06);width:220px">
+            <a class="download-btn" href="{output_file}" download>Download Excel</a>
+        </div>
     </div>
-    <div class=\"table-wrap\">{html_table}</div>
+    <div class="table-wrap">{html_table}</div>
     </div></div>
-</body></html>"""
+        <script src="https://cdn.jsdelivr.net/npm/tablesort@5.2.1/dist/tablesort.min.js"></script>
+        <script>
+        document.addEventListener('DOMContentLoaded', function(){
+            var table = document.querySelector('table.dataframe');
+            if(table){ try{ new Tablesort(table); }catch(e){} }
+            var input = document.getElementById('filter-input');
+            if(input && table){
+                input.addEventListener('input', function(){
+                    var q = this.value.toLowerCase();
+                    var rows = table.tBodies[0].rows;
+                    for (var i=0;i<rows.length;i++){
+                        var r = rows[i];
+                        // keep provider header visible if no query, otherwise hide it
+                        if(r.classList.contains('provider')){ r.style.display = q ? 'none' : ''; continue; }
+                        var text = r.textContent.toLowerCase();
+                        r.style.display = text.indexOf(q) > -1 ? '' : 'none';
+                    }
+                });
+            }
+        });
+        </script>
+    </body></html>"""
         html_path.write_text(html_content, encoding="utf-8")
         # Update index.html to redirect to the latest file
         index_path = docs_dir / "index.html"
