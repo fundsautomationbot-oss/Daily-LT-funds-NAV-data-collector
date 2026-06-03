@@ -1,10 +1,20 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"> 
 <title>Pension data 2026-06-02</title>
-<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px}table.dataframe{border-collapse:collapse}table.dataframe th,table.dataframe td{border:1px solid #ccc;padding:6px;text-align:left}</style>
+<link rel="stylesheet" href="style.css">
 </head><body>
-<h1>Pension data 2026-06-02</h1>
-    <p><a href="pension_data_combined_2026-06-02.xlsx" download>Download Excel</a></p>
+<div class="wrap"><div class="card">
+    <div class="header">
+        <div>
+            <h1 class="title">Pension data 2026-06-02</h1>
+            <div class="meta">Generated: 2026-06-03T17:24:37</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <input id="filter-input" placeholder="Filter funds…" aria-label="Filter funds">
+            <a class="download-btn" href="pension_data_combined_2026-06-02.xlsx" download>Download Excel</a>
+        </div>
+    </div>
+    <div class="table-wrap">
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -311,5 +321,26 @@
     </tr>
   </tbody>
 </table>
+    </div></div>
+    <script src="https://cdn.jsdelivr.net/npm/tablesort@5.2.1/dist/tablesort.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        var table = document.querySelector('table.dataframe');
+        if(table){ try{ new Tablesort(table); }catch(e){} }
+        var input = document.getElementById('filter-input');
+        if(input && table){
+            input.addEventListener('input', function(){
+                var q = this.value.toLowerCase();
+                var rows = table.tBodies[0].rows;
+                for (var i=0;i<rows.length;i++){
+                    var r = rows[i];
+                    if(r.classList.contains('provider')){ r.style.display = q ? 'none' : ''; continue; }
+                    var text = r.textContent.toLowerCase();
+                    r.style.display = text.indexOf(q) > -1 ? '' : 'none';
+                }
+            });
+        }
+    });
+    </script>
 <footer><p>Generated: 2026-06-03T17:24:37</p></footer>
 </body></html>
