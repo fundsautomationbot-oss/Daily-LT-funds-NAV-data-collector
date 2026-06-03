@@ -32,6 +32,178 @@ PROVIDER_ORDER_MAP = {name: idx for idx, name in enumerate(PROVIDER_ORDER)}
 FUND_BUCKET_MAP = {bucket: idx for idx, bucket in enumerate(FUND_AGE_BUCKETS)}
 
 
+def collect_report_files(docs_dir: Path):
+    reports = []
+    for path in sorted(docs_dir.glob("pension_data_combined_*.html")):
+        m = DATE_RE.search(path.name)
+        if not m:
+            continue
+        report_date = m.group(1)
+        reports.append({
+            "date": report_date,
+            "html": path.name,
+            "xlsx": f"pension_data_combined_{report_date}.xlsx",
+        })
+    return sorted(reports, key=lambda r: r["date"])
+
+
+def prune_old_reports(docs_dir: Path, max_keep: int = 14):
+    reports = collect_report_files(docs_dir)
+    if len(reports) <= max_keep:
+        return
+
+    old_reports = reports[:-max_keep]
+    for report in old_reports:
+        for report_file in (report["html"], report["xlsx"]):
+            path = docs_dir / report_file
+            if path.exists():
+                try:
+                    path.unlink()
+                except Exception:
+                    pass
+
+    # Also remove older root XLSX copies from the repository root.
+    xlsx_files = [path for path in Path(".").glob("pension_data_combined_*.xlsx") if DATE_RE.search(path.name)]
+    xlsx_files.sort(key=lambda p: DATE_RE.search(p.name).group(1))
+    for path in xlsx_files[:-max_keep]:
+        if path.exists():
+            try:
+                path.unlink()
+            except Exception:
+                pass
+
+
+def format_report_index(reports):
+    if not reports:
+        return (
+            "<!doctype html>\n"
+            "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+            "<title>Daily pension reports</title>\n"
+            "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
+            "<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap\" rel=\"stylesheet\">\n"
+            "<link rel=\"stylesheet\" href=\"style.css\">\n"
+            "</head><body>\n"
+            "<div class=\"wrap\"><div class=\"card\">\n"
+            "  <div class=\"header\">\n"
+            "    <div>\n"
+            "      <h1 class=\"title\">Pension report history</h1>\n"
+            "      <div class=\"meta\">No reports have been generated yet. Check back after the first run.</div>\n"
+            "    </div>\n"
+            "  </div>\n"
+            "</div></div>\n"
+            "</body></html>"
+        )
+
+    reports_js = ",\n        ".join(
+        [
+            f'{{date: "{r["date"]}", html: "{r["html"]}", xlsx: "{r["xlsx"]}"}}'
+            for r in reports
+        ]
+    )
+
+    return (
+        "<!doctype html>\n"
+        "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+        "<title>Daily pension reports</title>\n"
+        "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
+        "<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap\" rel=\"stylesheet\">\n"
+        "<link rel=\"stylesheet\" href=\"style.css\">\n"
+        "</head><body>\n"
+        "<div class=\"wrap\"><div class=\"card\">\n"
+        "  <div class=\"header\">\n"
+        "    <div>\n"
+        "      <h1 class=\"title\">Pension report history</h1>\n"
+        "      <div class=\"meta\">Choose a date range (maximum 14 days) to show downloadable reports.</div>\n"
+        "    </div>\n"
+        "  </div>\n"
+        "  <div class=\"report-filter\">\n"
+        "    <label>\n"
+        "      Start date\n"
+        "      <input id=\"start-date\" type=\"date\" />\n"
+        "    </label>\n"
+        "    <label>\n"
+        "      End date\n"
+        "      <input id=\"end-date\" type=\"date\" />\n"
+        "    </label>\n"
+        "    <p class=\"range-note\">Showing the most recent 14 days by default.</p>\n"
+        "  </div>\n"
+        "  <div class=\"range-warning\" id=\"range-warning\"></div>\n"
+        "  <ul class=\"report-list\" id=\"report-list\"></ul>\n"
+        "</div></div>\n"
+        "<script>\n"
+        "const reports = [\n"
+        + reports_js +
+        "\n];\n"
+        "const maxDays = 14;\n"
+        "function toISO(date) {\n"
+        "  return date.toISOString().slice(0, 10);\n"
+        "}\n"
+        "function parseISO(value) {\n"
+        "  return new Date(value + \"T00:00:00Z\");\n"
+        "}\n"
+        "function clampDateRange(start, end) {\n"
+        "  const startDate = parseISO(start);\n"
+        "  const endDate = parseISO(end);\n"
+        "  const diff = (endDate - startDate) / 86400000;\n"
+        "  if (diff > maxDays - 1) {\n"
+        "    startDate.setDate(endDate.getDate() - (maxDays - 1));\n"
+        "    return {start: toISO(startDate), end};\n"
+        "  }\n"
+        "  return {start, end};\n"
+        "}\n"
+        "function renderReports() {\n"
+        "  const start = document.getElementById('start-date').value;\n"
+        "  const end = document.getElementById('end-date').value;\n"
+        "  const clamped = clampDateRange(start, end);\n"
+        "  if (clamped.start !== start) {\n"
+        "    document.getElementById('range-warning').textContent = 'Range limited to 14 days.';\n"
+        "    document.getElementById('start-date').value = clamped.start;\n"
+        "  } else {\n"
+        "    document.getElementById('range-warning').textContent = '';\n"
+        "  }\n"
+        "  const filtered = reports.filter(r => r.date >= clamped.start && r.date <= clamped.end);\n"
+        "  const list = document.getElementById('report-list');\n"
+        "  list.innerHTML = filtered.length ? filtered.map(r => `\n"
+        "    <li class=\"report-card\">\n"
+        "      <div class=\"report-summary\">\n"
+        "        <strong>${{r.date}}</strong>\n"
+        "      </div>\n"
+        "      <div class=\"report-links\">\n"
+        "        <a class=\"link-pill\" href=\"${{r.html}}\">View HTML</a>\n"
+        "        <a class=\"link-pill\" href=\"${{r.xlsx}}\" download>Download XLSX</a>\n"
+        "      </div>\n"
+        "    </li>`).join('') : '<li class=\"report-empty\">No reports match the selected range.</li>';\n"
+        "}\n"
+        "function initIndex() {\n"
+        "  const dates = reports.map(r => r.date).sort();\n"
+        "  const latest = dates[dates.length - 1];\n"
+        "  const earliest = dates[0];\n"
+        "  const latestDate = parseISO(latest);\n"
+        "  const defaultStart = new Date(latestDate);\n"
+        "  defaultStart.setDate(latestDate.getDate() - maxDays + 1);\n"
+        "  const startVal = defaultStart < parseISO(earliest) ? earliest : toISO(defaultStart);\n"
+        "  document.getElementById('start-date').value = startVal;\n"
+        "  document.getElementById('end-date').value = latest;\n"
+        "  document.getElementById('start-date').min = earliest;\n"
+        "  document.getElementById('start-date').max = latest;\n"
+        "  document.getElementById('end-date').min = earliest;\n"
+        "  document.getElementById('end-date').max = latest;\n"
+        "  document.getElementById('start-date').addEventListener('change', renderReports);\n"
+        "  document.getElementById('end-date').addEventListener('change', renderReports);\n"
+        "  renderReports();\n"
+        "}\n"
+        "document.addEventListener('DOMContentLoaded', initIndex);\n"
+        "</script>\n"
+        "</body></html>"
+    )
+
+
+def write_index_page(docs_dir: Path):
+    reports = collect_report_files(docs_dir)
+    html_path = docs_dir / "index.html"
+    html_path.write_text(format_report_index(reports), encoding="utf-8")
+
+
 def parse_source_and_date(filename: str):
     """Extract source name and date from supported filename patterns."""
     date_match = DATE_RE.search(filename)
@@ -363,52 +535,60 @@ def main():
         except Exception:
             pass
 
-                html_content = f"""<!doctype html>
-<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> 
-<title>Pension data {data_date}</title>
-<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
-</head><body>
-<div class=\"wrap\"><div class=\"card\"> 
-    <div class="header"> 
-        <div>
-            <h1 class="title">Pension data {data_date}</h1>
-            <div class="meta">Generated: {datetime.now().isoformat(timespec='seconds')}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-            <input id="filter-input" placeholder="Filter funds…" aria-label="Filter funds" style="padding:8px 10px;border-radius:8px;border:1px solid rgba(15,23,42,0.06);width:220px">
-            <a class="download-btn" href="{output_file}" download>Download Excel</a>
-        </div>
-    </div>
-    <div class="table-wrap">{html_table}</div>
-    </div></div>
-        <script src="https://cdn.jsdelivr.net/npm/tablesort@5.2.1/dist/tablesort.min.js"></script>
-        <script>
-        document.addEventListener('DOMContentLoaded', function(){
-            var table = document.querySelector('table.dataframe');
-            if(table){ try{ new Tablesort(table); }catch(e){} }
-            var input = document.getElementById('filter-input');
-            if(input && table){
-                input.addEventListener('input', function(){
-                    var q = this.value.toLowerCase();
-                    var rows = table.tBodies[0].rows;
-                    for (var i=0;i<rows.length;i++){
-                        var r = rows[i];
-                        // keep provider header visible if no query, otherwise hide it
-                        if(r.classList.contains('provider')){ r.style.display = q ? 'none' : ''; continue; }
-                        var text = r.textContent.toLowerCase();
-                        r.style.display = text.indexOf(q) > -1 ? '' : 'none';
-                    }
-                });
-            }
-        });
-        </script>
-    </body></html>"""
+        html_content = (
+            "<!doctype html>\n"
+            "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> \n"
+            f"<title>Pension data {data_date}</title>\n"
+            "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
+            "<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap\" rel=\"stylesheet\">\n"
+            "<link rel=\"stylesheet\" href=\"style.css\">\n"
+            "</head><body>\n"
+            "<div class=\"wrap\"><div class=\"card\"> \n"
+            "    <div class=\"header\"> \n"
+            "        <div>\n"
+            f"            <h1 class=\"title\">Pension data {data_date}</h1>\n"
+            f"            <div class=\"meta\">Generated: {datetime.now().isoformat(timespec='seconds')}</div>\n"
+            "        </div>\n"
+            "        <div style=\"display:flex;gap:8px;align-items:center\">\n"
+            "            <input id=\"filter-input\" placeholder=\"Filter funds…\" aria-label=\"Filter funds\" style=\"padding:8px 10px;border-radius:8px;border:1px solid rgba(15,23,42,0.06);width:220px\">\n"
+            f"            <a class=\"download-btn\" href=\"{output_file}\" download>Download Excel</a>\n"
+            "        </div>\n"
+            "    </div>\n"
+            "    <div class=\"table-wrap\">" + html_table + "</div>\n"
+            "    </div></div>\n"
+            "        <script src=\"https://cdn.jsdelivr.net/npm/tablesort@5.2.1/dist/tablesort.min.js\"></script>\n"
+            "        <script>\n"
+            "        document.addEventListener('DOMContentLoaded', function(){\n"
+            "            var table = document.querySelector('table.dataframe');\n"
+            "            if(table){ try{ new Tablesort(table); }catch(e){} }\n"
+            "            var input = document.getElementById('filter-input');\n"
+            "            if(input && table){\n"
+            "                input.addEventListener('input', function(){\n"
+            "                    var q = this.value.toLowerCase();\n"
+            "                    var rows = table.tBodies[0].rows;\n"
+            "                    var currentProvider = '';\n"
+            "                    var providerMatches = false;\n"
+            "                    for (var i=0;i<rows.length;i++){\n"
+            "                        var r = rows[i];\n"
+            "                        if(r.classList.contains('provider')){\n"
+            "                            currentProvider = r.textContent.toLowerCase().trim();\n"
+            "                            providerMatches = q && currentProvider.indexOf(q) > -1;\n"
+            "                            r.style.display = q ? (providerMatches ? '' : 'none') : '';\n"
+            "                            continue;\n"
+            "                        }\n"
+            "                        var text = r.textContent.toLowerCase();\n"
+            "                        var matches = q && (text.indexOf(q) > -1 || providerMatches);\n"
+            "                        r.style.display = q ? (matches ? '' : 'none') : '';\n"
+            "                    }\n"
+            "                });\n"
+            "            }\n"
+            "        });\n"
+            "        </script>\n"
+            "    </body></html>"
+        )
         html_path.write_text(html_content, encoding="utf-8")
-        # Update index.html to redirect to the latest file
-        index_path = docs_dir / "index.html"
-        index_path.write_text(f'<meta http-equiv="refresh" content="0; url={html_path.name}">', encoding="utf-8")
+        prune_old_reports(docs_dir)
+        write_index_page(docs_dir)
         print(f"\n✅ HTML report written to: {html_path}")
     except Exception as _e:
         print(f"Warning: failed to write HTML report: {_e}")
