@@ -363,15 +363,40 @@ def main():
         except Exception:
             pass
 
-        html_content = f"""<!doctype html>
+                html_content = f"""<!doctype html>
 <html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> 
 <title>Pension data {data_date}</title>
-<style>body{{font-family:Arial,Helvetica,sans-serif;margin:24px}}table.dataframe{{border-collapse:collapse}}table.dataframe th,table.dataframe td{{border:1px solid #ccc;padding:6px;text-align:left}}</style>
+<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
+<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap\" rel=\"stylesheet\">
+<style>
+:root{--bg:#f6f8fb;--card:#ffffff;--muted:#6b7280;--accent:#2563eb;--accent-600:#1e40af}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#0f172a;margin:0}
+.wrap{max-width:1100px;margin:28px auto;padding:16px}
+.card{background:var(--card);border-radius:12px;box-shadow:0 6px 18px rgba(15,23,42,0.06);padding:20px}
+.header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.title{font-size:20px;font-weight:700;margin:0}
+.meta{color:var(--muted);font-size:13px}
+.download-btn{background:linear-gradient(180deg,var(--accent),var(--accent-600));color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:600;box-shadow:0 6px 14px rgba(37,99,235,0.12)}
+.table-wrap{overflow:auto;border-radius:8px;border:1px solid rgba(15,23,42,0.04)}
+table.dataframe{width:100%;border-collapse:collapse;min-width:720px}
+table.dataframe thead th{position:sticky;top:0;background:#fff;padding:12px 10px;text-align:left;border-bottom:2px solid rgba(15,23,42,0.06)}
+table.dataframe tbody td{padding:10px 8px;border-bottom:1px solid rgba(15,23,42,0.04);vertical-align:middle}
+table.dataframe tbody tr:nth-child(even){background:rgba(15,23,42,0.02)}
+tr.provider td{background:linear-gradient(90deg,rgba(37,99,235,0.08),rgba(99,102,241,0.03));font-weight:700;text-transform:uppercase;color:var(--accent);text-align:center;border-bottom:1px solid rgba(15,23,42,0.06)}
+@media (max-width:640px){.title{font-size:16px}.download-btn{padding:8px 10px}}
+</style>
 </head><body>
-<h1>Pension data {data_date}</h1>
-    <p><a href="{output_file}" download>Download Excel</a></p>
-{html_table}
-<footer><p>Generated: {datetime.now().isoformat(timespec='seconds')}</p></footer>
+<div class=\"wrap\"><div class=\"card\"> 
+    <div class=\"header\"> 
+        <div>
+            <h1 class=\"title\">Pension data {data_date}</h1>
+            <div class=\"meta\">Generated: {datetime.now().isoformat(timespec='seconds')}</div>
+        </div>
+        <div><a class=\"download-btn\" href=\"{output_file}\" download>Download Excel</a></div>
+    </div>
+    <div class=\"table-wrap\">{html_table}</div>
+    </div></div>
 </body></html>"""
         html_path.write_text(html_content, encoding="utf-8")
         # Update index.html to redirect to the latest file
