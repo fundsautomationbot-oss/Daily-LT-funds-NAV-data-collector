@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import shutil
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font
 
@@ -318,6 +319,11 @@ def main():
         docs_dir = Path("docs")
         docs_dir.mkdir(exist_ok=True)
         html_path = docs_dir / f"pension_data_combined_{data_date}.html"
+        # Copy the Excel file into docs so it can be downloaded from GitHub Pages
+        try:
+            shutil.copy(output_file, docs_dir / output_file)
+        except Exception:
+            pass
         # Use a simple styled wrapper for readability
         # Prepare a display copy: replace NaN with empty string and format numbers
         display_df = df_combined.copy()
@@ -363,6 +369,7 @@ def main():
 <style>body{{font-family:Arial,Helvetica,sans-serif;margin:24px}}table.dataframe{{border-collapse:collapse}}table.dataframe th,table.dataframe td{{border:1px solid #ccc;padding:6px;text-align:left}}</style>
 </head><body>
 <h1>Pension data {data_date}</h1>
+    <p><a href="{output_file}" download>Download Excel</a></p>
 {html_table}
 <footer><p>Generated: {datetime.now().isoformat(timespec='seconds')}</p></footer>
 </body></html>"""
