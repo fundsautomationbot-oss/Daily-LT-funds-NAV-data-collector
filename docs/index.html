@@ -18,7 +18,6 @@
             <p id="result-count" class="mt-2 text-2xl font-semibold">Loading...</p>
           </div>
         </div>
-
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block">
             <span class="text-sm font-medium text-slate-700">Start date</span>
@@ -29,20 +28,19 @@
             <input id="end-date" type="date" class="mt-2 w-full rounded-3xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200" />
           </label>
         </div>
-
         <div class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-slate-600">
           Showing the most recent 14 days by default. Adjust the date range to find the latest report.
         </div>
-
         <div id="range-warning" class="min-h-[2rem] text-sm font-medium text-amber-700"></div>
-
         <ul id="report-list" class="grid gap-4"></ul>
       </div>
     </section>
   </main>
 </div>
 <script>
-const reports = [];
+const reports = [
+{date: "2026-06-02", html: "pension_data_combined_2026-06-02.html", xlsx: "pension_data_combined_2026-06-02.xlsx"}
+];
 const maxDays = 14;
 function toISO(date) {
   return date.toISOString().slice(0, 10);
@@ -85,18 +83,22 @@ function renderReports() {
           <a class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100" href="${r.xlsx}" download>Download</a>
         </div>
       </div>
-    </li>`).join('') : '<li class="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">No reports are available yet.</li>';
+    </li>`).join('') : '<li class="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">No reports match the selected range.</li>';
 }
 function initIndex() {
-  const today = new Date();
-  const defaultEnd = toISO(today);
-  const defaultStartDate = new Date(today);
-  defaultStartDate.setDate(defaultStartDate.getDate() - maxDays + 1);
-  const defaultStart = toISO(defaultStartDate);
-  document.getElementById('start-date').value = defaultStart;
-  document.getElementById('end-date').value = defaultEnd;
-  document.getElementById('start-date').max = defaultEnd;
-  document.getElementById('end-date').max = defaultEnd;
+  const dates = reports.map(r => r.date).sort();
+  const latest = dates[dates.length - 1];
+  const earliest = dates[0];
+  const latestDate = parseISO(latest);
+  const defaultStart = new Date(latestDate);
+  defaultStart.setDate(latestDate.getDate() - maxDays + 1);
+  const startVal = defaultStart < parseISO(earliest) ? earliest : toISO(defaultStart);
+  document.getElementById('start-date').value = startVal;
+  document.getElementById('end-date').value = latest;
+  document.getElementById('start-date').min = earliest;
+  document.getElementById('start-date').max = latest;
+  document.getElementById('end-date').min = earliest;
+  document.getElementById('end-date').max = latest;
   document.getElementById('start-date').addEventListener('change', renderReports);
   document.getElementById('end-date').addEventListener('change', renderReports);
   renderReports();
