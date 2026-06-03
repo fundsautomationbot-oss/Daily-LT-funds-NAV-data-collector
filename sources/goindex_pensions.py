@@ -180,17 +180,12 @@ class GoindexPensionsScraper(BaseScraper):
             page.wait_for_load_state("domcontentloaded")
             self.dismiss_cookie_modal(page)
 
-            # Goindex table can render after initial load on CI runners.
+            # Skip networkidle on Actions; instead poll for table presence directly.
             try:
-                page.wait_for_load_state("networkidle", timeout=60000)
+                page.wait_for_selector("table", timeout=45000)
             except Exception:
-                pass
-
-            try:
-                page.wait_for_selector("table", timeout=60000)
-            except Exception:
-                print("  Warning: table selector did not appear within 60s")
-
+                print("  Warning: table selector did not appear within 45s")
+            
             tables = page.query_selector_all("table")
             print(f"  Attempt {attempt}: found {len(tables)} table(s)")
 
