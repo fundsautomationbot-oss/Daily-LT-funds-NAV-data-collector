@@ -313,6 +313,30 @@ def main():
 
     wb.save(output_file)
 
+    # Also write an HTML report into docs/ so GitHub Pages can serve it
+    try:
+        docs_dir = Path("docs")
+        docs_dir.mkdir(exist_ok=True)
+        html_path = docs_dir / f"pension_data_combined_{data_date}.html"
+        # Use a simple styled wrapper for readability
+        html_table = df_combined.to_html(index=False, escape=False)
+        html_content = f"""<!doctype html>
+<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> 
+<title>Pension data {data_date}</title>
+<style>body{{font-family:Arial,Helvetica,sans-serif;margin:24px}}table.dataframe{{border-collapse:collapse}}table.dataframe th,table.dataframe td{{border:1px solid #ccc;padding:6px;text-align:left}}</style>
+</head><body>
+<h1>Pension data {data_date}</h1>
+{html_table}
+<footer><p>Generated: {datetime.now().isoformat(timespec='seconds')}</p></footer>
+</body></html>"""
+        html_path.write_text(html_content, encoding="utf-8")
+        # Update index.html to redirect to the latest file
+        index_path = docs_dir / "index.html"
+        index_path.write_text(f'<meta http-equiv="refresh" content="0; url={html_path.name}">', encoding="utf-8")
+        print(f"\n✅ HTML report written to: {html_path}")
+    except Exception as _e:
+        print(f"Warning: failed to write HTML report: {_e}")
+
     print(f"\n✅ Merged file created: {output_file}")
     print(f"   Rows: {len(df_combined)}")
     print(f"   Columns: {list(df_combined.columns)}")

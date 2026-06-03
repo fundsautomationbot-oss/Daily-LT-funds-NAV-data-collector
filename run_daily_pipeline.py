@@ -110,18 +110,22 @@ def main():
     else:
         print(f"Warning: {merge_script} not found")
 
-    # Step 3: Send email
-    print("\n=== Running send_email.py ===")
-    email_script = BASE_DIR / "send_email.py"
-    if email_script.exists():
-        email_success = run_step(email_script, retries=0)
-        if not email_success:
-            print("Email step failed.")
-            if failed_scrapers:
-                print(f"Failed scrapers: {', '.join(failed_scrapers)}")
-            sys.exit(1)
+    # Step 3: Send email (optional via SEND_EMAIL env var)
+    send_email_enabled = os.getenv("SEND_EMAIL", "true").lower() in ("1", "true", "yes")
+    if send_email_enabled:
+        print("\n=== Running send_email.py ===")
+        email_script = BASE_DIR / "send_email.py"
+        if email_script.exists():
+            email_success = run_step(email_script, retries=0)
+            if not email_success:
+                print("Email step failed.")
+                if failed_scrapers:
+                    print(f"Failed scrapers: {', '.join(failed_scrapers)}")
+                sys.exit(1)
+        else:
+            print(f"Warning: {email_script} not found")
     else:
-        print(f"Warning: {email_script} not found")
+        print('\nSEND_EMAIL=false, skipping email send')
 
     if failed_scrapers:
         print(f"Workflow completed with failures in: {', '.join(failed_scrapers)}")
