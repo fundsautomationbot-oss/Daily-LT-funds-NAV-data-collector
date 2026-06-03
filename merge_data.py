@@ -557,11 +557,17 @@ def main():
 
         # Add Tailwind styling and a cleaner report page layout
         html_table = html_table.replace(
-            'class="dataframe"',
-            'class="dataframe min-w-full divide-y divide-slate-200 text-sm text-slate-700"'
-        ).replace(
-            '<table border="1"',
-            '<table border="1" class="shadow-sm rounded-3xl border border-slate-200 bg-white"'
+            '<table border="1" class="dataframe">',
+            '<table border="0" class="dataframe min-w-full divide-y divide-slate-200 text-sm text-slate-700 bg-white shadow-sm">'
+        )
+        html_table = html_table.replace('<thead>', '<thead class="bg-slate-100 text-slate-900">')
+        html_table = html_table.replace('<th>', '<th class="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-900">')
+        html_table = html_table.replace('<td>', '<td class="whitespace-nowrap px-4 py-3">')
+        html_table = re.sub(
+            r'<tr class="provider"><td colspan="(\d+)">(.*?)</td></tr>',
+            r'<tr class="provider bg-slate-100 text-slate-700 uppercase tracking-[0.15em]"><td colspan="\1" class="px-4 py-3 font-semibold">\2</td></tr>',
+            html_table,
+            flags=re.IGNORECASE,
         )
 
         html_content = (
@@ -569,6 +575,12 @@ def main():
             "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
             f"<title>Pension data {data_date}</title>\n"
             "<script src=\"https://cdn.tailwindcss.com\"></script>\n"
+            "<style>\n"
+            "  table.dataframe { border-collapse: collapse; }\n"
+            "  table.dataframe td, table.dataframe th { border-bottom: 1px solid #e2e8f0; }\n"
+            "  table.dataframe tbody tr:nth-child(even) { background: #f8fafc; }\n"
+            "  table.dataframe tbody tr.provider td { background: #f1f5f9; }\n"
+            "</style>\n"
             "</head><body class=\"bg-slate-50 text-slate-900 antialiased\">\n"
             "<div class=\"min-h-screen py-10 px-4 sm:px-6 lg:px-8\">\n"
             "  <main class=\"mx-auto max-w-6xl\">\n"
@@ -579,14 +591,14 @@ def main():
             f"          <h1 class=\"mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl\">Pension data {data_date}</h1>\n"
             f"          <p class=\"mt-2 text-sm text-slate-500\">Generated: {datetime.now().isoformat(timespec='seconds')}</p>\n"
             "        </div>\n"
-            "        <div class=\"flex flex-wrap gap-3\">\n"
+            "        <div class=\"flex flex-wrap items-center gap-3\">\n"
             "          <a class=\"inline-flex items-center rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100\" href=\"index.html\">← Back to history</a>\n"
             f"          <a class=\"inline-flex items-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800\" href=\"{output_file}\" download>Download Excel</a>\n"
             "        </div>\n"
             "      </div>\n"
             "      <div class=\"mt-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]\">\n"
             "        <input id=\"filter-input\" class=\"h-12 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 text-slate-900 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200\" placeholder=\"Filter funds…\" aria-label=\"Filter funds\" />\n"
-            "        <p class=\"whitespace-nowrap text-sm text-slate-500\">Filter the table by fund name, provider or date.</p>\n"
+            "        <p class=\"whitespace-nowrap text-sm text-slate-500\">Filter the table by fund name, provider, or date.</p>\n"
             "      </div>\n"
             "      <div class=\"mt-6 overflow-x-auto rounded-3xl border border-slate-200 bg-slate-50 p-0\">\n"
             "        <div class=\"overflow-hidden rounded-3xl\">\n"
