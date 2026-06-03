@@ -319,7 +319,44 @@ def main():
         docs_dir.mkdir(exist_ok=True)
         html_path = docs_dir / f"pension_data_combined_{data_date}.html"
         # Use a simple styled wrapper for readability
-        html_table = df_combined.to_html(index=False, escape=False)
+        # Prepare a display copy: replace NaN with empty string and format numbers
+        display_df = df_combined.copy()
+        display_df = display_df.fillna("")
+
+        def fmt_gross(x):
+            try:
+                if x == "":
+                    return ""
+                return f"{int(round(float(x))):,}"
+            except Exception:
+                return x
+
+        def fmt_unit(x):
+            try:
+                if x == "":
+                    return ""
+                return f"{float(x):,.4f}"
+            except Exception:
+                return x
+
+        if "Grynieji aktyvai" in display_df.columns:
+            display_df["Grynieji aktyvai"] = display_df["Grynieji aktyvai"].apply(fmt_gross)
+        if "Vieneto vertė" in display_df.columns:
+            display_df["Vieneto vertė"] = display_df["Vieneto vertė"].apply(fmt_unit)
+
+        html_table = display_df.to_html(index=False, escape=False)
+        # Replace provider header rows (e.g. ALLIANZ) with a full-width provider row
+        try:
+            ncols = len(display_df.columns)
+            for prov in PROVIDER_ORDER:
+                prov_up = prov.upper()
+                # pattern: a row where first td == prov_up and remaining tds are empty
+                pattern = rf"<tr>\s*<td[^>]*>{prov_up}</td>(?:\s*<td[^>]*>\s*</td>){{{ncols-1}}}\s*</tr>"
+                replacement = f"<tr class=\"provider\"><td colspan=\"{ncols}\">{prov_up}</td></tr>"
+                html_table = re.sub(pattern, replacement, html_table, flags=re.IGNORECASE)
+        except Exception:
+            pass
+
         html_content = f"""<!doctype html>
 <html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> 
 <title>Pension data {data_date}</title>
