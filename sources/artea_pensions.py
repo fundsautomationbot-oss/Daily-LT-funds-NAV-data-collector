@@ -99,12 +99,19 @@ class ArteaPensionsScraper(BaseScraper):
         return self.page
 
     def build_api_row(self, fund_code: str, record: dict) -> dict:
+        unit_value = record.get("p")
+        if unit_value is None:
+            raise ValueError(
+                f"Missing Artea unit value for {fund_code}."
+                " The API response should contain `p`; falling back to browser scraping."
+            )
+
         return {
             "Fund name": self.FUND_CODE_MAP.get(fund_code, fund_code),
             "Data": record.get("d"),
             # Artea API returns both `p` (unit value) and `b` (internal normalized price).
-            # The expected fund unit value is the `p` field.
-            "Vieneto vertė": record.get("p") if record.get("p") is not None else record.get("b"),
+            # The expected fund unit value is the `p` field, not the internal normalized price.
+            "Vieneto vertė": unit_value,
             "Grynieji aktyvai": record.get("n"),
         }
 
