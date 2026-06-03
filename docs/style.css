@@ -5,9 +5,9 @@
   --surface:#ffffff;
   --muted:#6b7280;
   --text:#111827;
-  --accent:#3b82f6;
-  --accent-strong:#2563eb;
-  --border:rgba(15,23,42,0.1);
+  --accent:#10b981;
+  --accent-strong:#047857;
+  --border:rgba(15,23,42,0.08);
   --shadow:0 22px 52px rgba(15,23,42,0.08);
 }
 *{box-sizing:border-box}
@@ -173,20 +173,20 @@ body::before{
   font-size:0.95rem;
   font-weight:700;
   color:var(--text);
-  background:#eef4ff;
-  border:1px solid rgba(59,130,246,0.18);
+  background:#ecfdf5;
+  border:1px solid rgba(16,185,129,0.18);
   transition:transform .2s ease,background .2s ease,box-shadow .2s ease;
 }
 .link-pill:hover{
   transform:translateY(-1px);
-  background:rgba(96,165,250,0.24);
-  box-shadow:0 16px 40px rgba(96,165,250,0.12);
+  background:rgba(16,185,129,0.20);
+  box-shadow:0 16px 40px rgba(16,185,129,0.10);
 }
 .report-empty{
   padding:28px 24px;
   text-align:center;
   color:var(--muted);
-  background:#f8fafc;
+  background:#f0fdf4;
   border:1px dashed rgba(148,163,184,0.2);
   border-radius:18px;
 }
@@ -202,12 +202,12 @@ body::before{
   background:linear-gradient(135deg,var(--accent),var(--accent-strong));
   text-decoration:none;
   font-weight:700;
-  box-shadow:0 18px 40px rgba(59,130,246,0.22);
+  box-shadow:0 18px 40px rgba(16,185,129,0.22);
   transition:transform .2s ease,box-shadow .2s ease;
 }
 .download-btn:hover{
   transform:translateY(-1px);
-  box-shadow:0 24px 50px rgba(59,130,246,0.28);
+  box-shadow:0 24px 50px rgba(16,185,129,0.26);
 }
 .back-link{
   display:inline-flex;
@@ -217,7 +217,7 @@ body::before{
   border-radius:14px;
   border:1px solid rgba(148,163,184,0.24);
   color:var(--text);
-  background:#f8fafc;
+  background:#f0fdf4;
   text-decoration:none;
   font-weight:700;
   transition:transform .2s ease,background .2s ease,border-color .2s ease;
@@ -292,7 +292,7 @@ table.dataframe tbody tr:hover{
   background:rgba(59,130,246,0.06);
 }
 tr.provider td{
-  background:linear-gradient(90deg,rgba(96,165,250,0.14),rgba(59,130,246,0.08));
+  background:linear-gradient(90deg,rgba(16,185,129,0.14),rgba(6,182,154,0.08));
   font-weight:700;
   text-transform:uppercase;
   color:var(--accent);
