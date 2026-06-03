@@ -133,6 +133,7 @@ class ArteaPensionsScraper(BaseScraper):
 
     def fetch_api_latest_data(self) -> list:
         results = []
+        failures = []
         for fund_code in self.FUND_CODE_MAP:
             try:
                 latest = self.fetch_history_latest(fund_code)
@@ -140,9 +141,18 @@ class ArteaPensionsScraper(BaseScraper):
                     results.append(self.build_api_row(fund_code, latest))
                     print(f"Loaded latest data for {fund_code} via API")
             except Exception as exc:
+                failures.append(fund_code)
                 print(f"API fetch failed for {fund_code}: {exc}")
-                return []
-        return results
+
+        if results:
+            if failures:
+                print(
+                    f"Partial Artea API results available ({len(results)}/{len(self.FUND_CODE_MAP)})."
+                    " Using available API data and skipping browser fallback for missing funds."
+                )
+            return results
+
+        return []
 
     def cleanup_browser(self):
         if self.browser:
