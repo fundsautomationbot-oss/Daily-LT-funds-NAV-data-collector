@@ -210,7 +210,10 @@ def format_report_index(reports):
 
 def write_index_page(docs_dir: Path):
     complete_dates = discover_complete_snapshot_dates()
-    reports = collect_report_files(docs_dir, allowed_dates=complete_dates)
+    # If completeness cannot be determined from current raw files (e.g. CI runner has only partial day files),
+    # keep showing existing published reports instead of rendering an empty selector.
+    allowed_dates = complete_dates if complete_dates else None
+    reports = collect_report_files(docs_dir, allowed_dates=allowed_dates)
     html_path = docs_dir / "index.html"
     html_path.write_text(format_report_index(reports), encoding="utf-8")
 
@@ -350,7 +353,24 @@ def discover_latest_files_per_source():
 
 def main():
     print("Discovering data files...")
-    data_files = discover_latest_files_per_source()
+    try:
+        data_files = discover_latest_files_per_source()
+    except RuntimeError as exc:
+        docs_dir = Path("docs")
+        docs_dir.mkdir(exist_ok=True)
+        existing_reports = collect_report_files(docs_dir)
+
+        if existing_reports:
+            # Keep workflow successful and keep existing published complete report
+            # when fresh provider files are temporarily out-of-sync.
+            print(f"Warning: {exc}")
+            latest_existing = existing_reports[-1]["date"]
+            print(f"No synchronized snapshot available yet. Keeping published report date: {latest_existing}")
+            write_index_page(docs_dir)
+            print("✅ Index page refreshed using existing complete reports.")
+            return
+
+        raise
 
     if not data_files:
         print("Error: No data files found. Run scrapers first.")
