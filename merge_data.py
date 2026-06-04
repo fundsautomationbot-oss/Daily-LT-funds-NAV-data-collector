@@ -33,7 +33,7 @@ PROVIDER_ORDER_MAP = {name: idx for idx, name in enumerate(PROVIDER_ORDER)}
 FUND_BUCKET_MAP = {bucket: idx for idx, bucket in enumerate(FUND_AGE_BUCKETS)}
 
 
-def collect_report_files(docs_dir: Path, allowed_dates=None):
+def collect_report_files(docs_dir: Path, allowed_dates=None, max_date=None):
     reports = []
     for path in sorted(docs_dir.glob("pension_data_combined_*.html")):
         m = DATE_RE.search(path.name)
@@ -41,6 +41,8 @@ def collect_report_files(docs_dir: Path, allowed_dates=None):
             continue
         report_date = m.group(1)
         if allowed_dates is not None and report_date not in allowed_dates:
+            continue
+        if max_date is not None and report_date > max_date:
             continue
         reports.append({
             "date": report_date,
@@ -80,6 +82,41 @@ def discover_complete_snapshot_dates():
         common_dates = provider_dates if common_dates is None else (common_dates & provider_dates)
 
     return common_dates or set()
+
+
+def discover_provider_floor_date():
+    """
+    Return the minimum of latest provider dates.
+
+    Example:
+    - providers latest: [2026-06-02, 2026-06-02, 2026-06-03, ...]
+    - floor date: 2026-06-02
+    """
+    latest_by_provider = {}
+
+    for path in Path(".").glob("*.xlsx"):
+        lower = path.name.lower()
+        if path.name.startswith("~$"):
+            continue
+        if "combined" in lower:
+            continue
+        if not DATE_RE.search(path.name):
+            continue
+
+        source_name, file_date = parse_source_and_date(path.name)
+        if not source_name or not file_date:
+            continue
+
+        provider = institution_from_source(source_name)
+        current = latest_by_provider.get(provider)
+        if current is None or file_date > current:
+            latest_by_provider[provider] = file_date
+
+    required = set(PROVIDER_ORDER)
+    if not required.issubset(latest_by_provider.keys()):
+        return None
+
+    return min(latest_by_provider[p] for p in PROVIDER_ORDER)
 
 
 def prune_old_reports(docs_dir: Path, max_keep: int = 14):
@@ -210,10 +247,14 @@ def format_report_index(reports):
 
 def write_index_page(docs_dir: Path):
     complete_dates = discover_complete_snapshot_dates()
-    # If completeness cannot be determined from current raw files (e.g. CI runner has only partial day files),
-    # keep showing existing published reports instead of rendering an empty selector.
-    allowed_dates = complete_dates if complete_dates else None
-    reports = collect_report_files(docs_dir, allowed_dates=allowed_dates)
+    if complete_dates:
+        reports = collect_report_files(docs_dir, allowed_dates=complete_dates)
+    else:
+        # If there is no fully synchronized date in current raw files,
+        # keep showing previously published dates only up to the provider floor date.
+        floor_date = discover_provider_floor_date()
+        reports = collect_report_files(docs_dir, max_date=floor_date)
+
     html_path = docs_dir / "index.html"
     html_path.write_text(format_report_index(reports), encoding="utf-8")
 
@@ -364,7 +405,13 @@ def main():
             # Keep workflow successful and keep existing published complete report
             # when fresh provider files are temporarily out-of-sync.
             print(f"Warning: {exc}")
-            latest_existing = existing_reports[-1]["date"]
+            complete_dates = discover_complete_snapshot_dates()
+            if complete_dates:
+                visible_reports = collect_report_files(docs_dir, allowed_dates=complete_dates)
+            else:
+                visible_reports = collect_report_files(docs_dir, max_date=discover_provider_floor_date())
+
+            latest_existing = visible_reports[-1]["date"] if visible_reports else existing_reports[-1]["date"]
             print(f"No synchronized snapshot available yet. Keeping published report date: {latest_existing}")
             write_index_page(docs_dir)
             print("✅ Index page refreshed using existing complete reports.")
