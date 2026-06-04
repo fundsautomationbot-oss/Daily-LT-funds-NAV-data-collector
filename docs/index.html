@@ -23,7 +23,9 @@
         <div class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
           Device mode is enabled: reports generated from this browser are shown only on this browser.
         </div>
-        <iframe id="report-frame" title="Pension report viewer" src="pension_data_combined_2026-06-03.html" class="h-[62vh] sm:h-[70vh] lg:h-[76vh] w-full rounded-3xl border border-slate-200 bg-white"></iframe>
+        <div id="report-body" class="overflow-x-auto rounded-3xl border border-slate-200 bg-white min-h-[16rem]">
+          <div id="report-content" class="p-6 text-center text-slate-400 text-sm py-16">Tap &ldquo;Generate for this device&rdquo; to load reports on this browser.</div>
+        </div>
       </div>
     </section>
   </main>
@@ -64,9 +66,8 @@ function readVisibleDates() {
       if (Array.isArray(parsed)) return parsed;
     } catch (e) {}
   }
-  const seed = getGlobalSortedReports().map(function(r){ return r.date; });
-  localStorage.setItem(key, JSON.stringify(seed));
-  return seed;
+  localStorage.setItem(key, JSON.stringify([]));
+  return [];
 }
 function saveVisibleDates(dates) {
   const uniq = Array.from(new Set(dates)).sort();
@@ -76,11 +77,26 @@ function deviceReports() {
   const allowed = new Set(readVisibleDates());
   return getGlobalSortedReports().filter(function(r){ return allowed.has(r.date); });
 }
-function setSelection(report) {
-  const frame = document.getElementById('report-frame');
+async function setSelection(report) {
   const link = document.getElementById('download-link');
-  frame.src = report.html + '?t=' + Date.now();
+  const body = document.getElementById('report-content');
   link.href = report.xlsx;
+  body.innerHTML = '<p class="text-slate-400 text-sm text-center py-16">Loading report…</p>';
+  try {
+    const res = await fetch(report.html + '?t=' + Date.now(), { cache: 'no-store' });
+    const html = await res.text();
+    const tmp = document.createElement('div');
+    const m = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    tmp.innerHTML = m ? m[1] : html;
+    const style = tmp.querySelector('style');
+    const table = tmp.querySelector('table');
+    body.innerHTML = '';
+    if (style) body.appendChild(style.cloneNode(true));
+    if (table) body.appendChild(table.cloneNode(true));
+    else body.innerHTML = '<p class="text-red-400 text-sm text-center py-16">Could not extract table.</p>';
+  } catch(e) {
+    body.innerHTML = '<p class="text-red-500 text-sm text-center py-16">Failed to load report: ' + e.message + '</p>';
+  }
 }
 function showNotice(message, type) {
   const bgClass = type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
@@ -189,10 +205,11 @@ function initIndex() {
     option.textContent = report.date;
     select.appendChild(option);
   });
-  const newest = sorted[0] || getGlobalSortedReports()[0];
-  if (newest) {
-    select.value = newest.date;
-    setSelection(newest);
+  if (!sorted.length) {
+    document.getElementById('report-content').innerHTML = '<p class="text-slate-500 text-sm text-center py-16">No reports on this device yet.<br>Tap &ldquo;Generate for this device&rdquo; to load the latest data.</p>';
+  } else {
+    select.value = sorted[0].date;
+    setSelection(sorted[0]);
   }
   select.addEventListener('change', function(){
     const selected = reports.find(function(r){ return r.date === select.value; });
