@@ -104,6 +104,10 @@ async function triggerWorkflow() {
     showNotice('Trigger endpoint is not configured.', 'error');
     return null;
   }
+  if (window.location.protocol === 'file:') {
+    showNotice('Update trigger is unavailable from local file preview. Open the deployed page or run a local web server.', 'warning');
+    return null;
+  }
   try {
     const res = await fetch(TRIGGER_API_URL, {
       method: 'POST',
@@ -116,7 +120,11 @@ async function triggerWorkflow() {
     showNotice('Trigger failed (' + res.status + ')' + detail, 'error');
     return null;
   } catch (e) {
-    showNotice('Error calling trigger endpoint: ' + e.message, 'error');
+    var msg = (e && e.message) ? e.message : 'network error';
+    if (window.location.protocol === 'file:' || msg === 'Failed to fetch') {
+      msg = 'Request blocked in this context. Use the deployed page or local web server.';
+    }
+    showNotice('Error calling trigger endpoint: ' + msg, 'error');
     return null;
   }
 }
