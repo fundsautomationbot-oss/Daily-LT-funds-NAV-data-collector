@@ -16,39 +16,171 @@
           <div class="flex flex-wrap items-center gap-3">
             <label class="text-sm font-medium text-slate-700" for="report-select">Report date</label>
             <select id="report-select" class="rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"></select>
+            <button id="check-updates-btn" class="rounded-full border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Generate for this device</button>
             <a id="download-link" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700" href="#" download>Download Excel</a>
           </div>
         </div>
         <div class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
-          The report table is loaded directly below for the selected date.
+          Device mode is enabled: reports generated from this browser are shown only on this browser.
         </div>
-        <iframe id="report-frame" title="Pension report viewer" src="pension_data_combined_2026-06-03.html" class="h-[76vh] w-full rounded-3xl border border-slate-200 bg-white"></iframe>
+        <iframe id="report-frame" title="Pension report viewer" src="pension_data_combined_2026-06-02.html" class="h-[76vh] w-full rounded-3xl border border-slate-200 bg-white"></iframe>
       </div>
     </section>
   </main>
 </div>
 <script>
 const reports = [
-{date: "2026-06-02", html: "pension_data_combined_2026-06-02.html", xlsx: "pension_data_combined_2026-06-02.xlsx"},
-        {date: "2026-06-03", html: "pension_data_combined_2026-06-03.html", xlsx: "pension_data_combined_2026-06-03.xlsx"}
+{date: "2026-06-02", html: "pension_data_combined_2026-06-02.html", xlsx: "pension_data_combined_2026-06-02.xlsx"}
 ];
+const TRIGGER_API_URL = 'https://daily-lt-funds-trigger.daily-lt-funds-trigger.workers.dev/trigger';
+const DEVICE_ID_KEY = 'ltFundsDeviceId';
+const DEVICE_DATES_PREFIX = 'ltFundsVisibleDates:';
+const PENDING_UPDATE_KEY = 'ltFundsPendingBaseline';
 function byNewest(a, b) { return b.date.localeCompare(a.date); }
+function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (id) return id;
+  if (window.crypto && window.crypto.randomUUID) {
+    id = window.crypto.randomUUID();
+  } else {
+    id = 'dev-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+  localStorage.setItem(DEVICE_ID_KEY, id);
+  return id;
+}
+function visibleDatesKey() {
+  return DEVICE_DATES_PREFIX + getDeviceId();
+}
+function getGlobalSortedReports() {
+  return reports.slice().sort(byNewest);
+}
+function readVisibleDates() {
+  const key = visibleDatesKey();
+  const raw = localStorage.getItem(key);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+  }
+  const seed = getGlobalSortedReports().map(function(r){ return r.date; });
+  localStorage.setItem(key, JSON.stringify(seed));
+  return seed;
+}
+function saveVisibleDates(dates) {
+  const uniq = Array.from(new Set(dates)).sort();
+  localStorage.setItem(visibleDatesKey(), JSON.stringify(uniq));
+}
+function deviceReports() {
+  const allowed = new Set(readVisibleDates());
+  return getGlobalSortedReports().filter(function(r){ return allowed.has(r.date); });
+}
 function setSelection(report) {
   const frame = document.getElementById('report-frame');
   const link = document.getElementById('download-link');
   frame.src = report.html + '?t=' + Date.now();
   link.href = report.xlsx;
 }
+function showNotice(message, type) {
+  const bgClass = type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+                  type === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+                  type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+                  'bg-blue-50 border-blue-200 text-blue-800';
+  const n = document.createElement('div');
+  n.className = 'fixed top-4 right-4 p-4 rounded-2xl border ' + bgClass + ' shadow-lg z-50 max-w-sm';
+  n.textContent = message;
+  document.body.appendChild(n);
+  setTimeout(function(){ n.remove(); }, 7000);
+}
+function getStatusUrl(afterIso) {
+  const base = TRIGGER_API_URL.endsWith('/trigger')
+    ? TRIGGER_API_URL.slice(0, -8) + '/status'
+    : TRIGGER_API_URL.replace(/\/+$/, '') + '/status';
+  return base + '?after=' + encodeURIComponent(afterIso || '');
+}
+async function triggerWorkflow() {
+  if (!TRIGGER_API_URL) {
+    showNotice('Trigger endpoint is not configured.', 'error');
+    return null;
+  }
+  try {
+    const res = await fetch(TRIGGER_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'trigger_daily_publish' })
+    });
+    const payload = await res.json().catch(function(){ return {}; });
+    if (res.ok) return payload.dispatchedAt || new Date().toISOString();
+    const detail = payload && payload.error ? ': ' + payload.error : '';
+    showNotice('Trigger failed (' + res.status + ')' + detail, 'error');
+    return null;
+  } catch (e) {
+    showNotice('Error calling trigger endpoint: ' + e.message, 'error');
+    return null;
+  }
+}
+async function waitForBuildCompletion(dispatchedAt, maxWaitMs) {
+  maxWaitMs = maxWaitMs || 420000;
+  const start = Date.now();
+  const statusUrl = getStatusUrl(dispatchedAt);
+  while (Date.now() - start < maxWaitMs) {
+    await new Promise(function(resolve){ setTimeout(resolve, 8000); });
+    try {
+      const res = await fetch(statusUrl + '&t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) continue;
+      const payload = await res.json().catch(function(){ return {}; });
+      if (payload.run && payload.run.status === 'completed') return payload.run;
+    } catch (e) {}
+  }
+  return null;
+}
+async function checkForUpdates() {
+  const btn = document.getElementById('check-updates-btn');
+  const current = getGlobalSortedReports()[0];
+  const baseline = current ? current.date : null;
+  btn.disabled = true;
+  btn.textContent = 'Triggering...';
+  try {
+    const dispatchedAt = await triggerWorkflow();
+    if (!dispatchedAt) return;
+    showNotice('Generation triggered for this device. Waiting for publish...', 'info');
+    btn.textContent = 'Waiting...';
+    const done = await waitForBuildCompletion(dispatchedAt);
+    if (!done) {
+      showNotice('Build did not finish in time. Try again in a moment.', 'warning');
+      return;
+    }
+    if (baseline) sessionStorage.setItem(PENDING_UPDATE_KEY, baseline);
+    window.location.reload();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate for this device';
+  }
+}
 function initIndex() {
   const select = document.getElementById('report-select');
-  const sorted = reports.slice().sort(byNewest);
+  const pending = sessionStorage.getItem(PENDING_UPDATE_KEY);
+  if (pending) {
+    sessionStorage.removeItem(PENDING_UPDATE_KEY);
+    const newestGlobal = getGlobalSortedReports()[0];
+    if (newestGlobal && newestGlobal.date > pending) {
+      const dates = readVisibleDates();
+      dates.push(newestGlobal.date);
+      saveVisibleDates(dates);
+      showNotice('New report added for this device: ' + newestGlobal.date, 'success');
+    } else {
+      showNotice('No newer complete report found yet.', 'warning');
+    }
+  }
+
+  const sorted = deviceReports();
   sorted.forEach(function(report){
     const option = document.createElement('option');
     option.value = report.date;
     option.textContent = report.date;
     select.appendChild(option);
   });
-  const newest = sorted[0];
+  const newest = sorted[0] || getGlobalSortedReports()[0];
   if (newest) {
     select.value = newest.date;
     setSelection(newest);
@@ -57,6 +189,8 @@ function initIndex() {
     const selected = reports.find(function(r){ return r.date === select.value; });
     if (selected) setSelection(selected);
   });
+  var btn = document.getElementById('check-updates-btn');
+  if (btn) btn.addEventListener('click', checkForUpdates);
 }
 document.addEventListener('DOMContentLoaded', initIndex);
 </script>
