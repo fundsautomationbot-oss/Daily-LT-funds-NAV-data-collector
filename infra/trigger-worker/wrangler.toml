@@ -4,7 +4,7 @@ compatibility_date = "2026-06-04"
 
 [vars]
 # Comma-separated list of allowed origins, e.g. "https://fundsautomationbot-oss.github.io"
-ALLOWED_ORIGINS = ""
+ALLOWED_ORIGINS = "https://fundsautomationbot-oss.github.io"
 # Optional public key for lightweight abuse protection (set empty to disable)
 PUBLIC_TRIGGER_KEY = ""
 # owner/repo
