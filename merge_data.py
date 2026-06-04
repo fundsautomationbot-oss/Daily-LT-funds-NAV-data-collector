@@ -33,19 +33,53 @@ PROVIDER_ORDER_MAP = {name: idx for idx, name in enumerate(PROVIDER_ORDER)}
 FUND_BUCKET_MAP = {bucket: idx for idx, bucket in enumerate(FUND_AGE_BUCKETS)}
 
 
-def collect_report_files(docs_dir: Path):
+def collect_report_files(docs_dir: Path, allowed_dates=None):
     reports = []
     for path in sorted(docs_dir.glob("pension_data_combined_*.html")):
         m = DATE_RE.search(path.name)
         if not m:
             continue
         report_date = m.group(1)
+        if allowed_dates is not None and report_date not in allowed_dates:
+            continue
         reports.append({
             "date": report_date,
             "html": path.name,
             "xlsx": f"pension_data_combined_{report_date}.xlsx",
         })
     return sorted(reports, key=lambda r: r["date"])
+
+
+def discover_complete_snapshot_dates():
+    """Return all dates that exist across all required providers."""
+    dates_by_institution = {}
+
+    for path in Path(".").glob("*.xlsx"):
+        lower = path.name.lower()
+        if path.name.startswith("~$"):
+            continue
+        if "combined" in lower:
+            continue
+        if not DATE_RE.search(path.name):
+            continue
+
+        source_name, file_date = parse_source_and_date(path.name)
+        if not source_name or not file_date:
+            continue
+
+        institution = institution_from_source(source_name)
+        dates_by_institution.setdefault(institution, set()).add(file_date)
+
+    required_providers = set(PROVIDER_ORDER)
+    if not required_providers.issubset(dates_by_institution.keys()):
+        return set()
+
+    common_dates = None
+    for provider in PROVIDER_ORDER:
+        provider_dates = dates_by_institution.get(provider, set())
+        common_dates = provider_dates if common_dates is None else (common_dates & provider_dates)
+
+    return common_dates or set()
 
 
 def prune_old_reports(docs_dir: Path, max_keep: int = 14):
@@ -175,7 +209,8 @@ def format_report_index(reports):
 
 
 def write_index_page(docs_dir: Path):
-    reports = collect_report_files(docs_dir)
+    complete_dates = discover_complete_snapshot_dates()
+    reports = collect_report_files(docs_dir, allowed_dates=complete_dates)
     html_path = docs_dir / "index.html"
     html_path.write_text(format_report_index(reports), encoding="utf-8")
 
