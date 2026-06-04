@@ -239,9 +239,12 @@ def fund_bucket_order(fund_name: str) -> int:
 
 def discover_latest_files_per_source():
     """
-    Discover latest usable Excel file per source from both naming styles:
-    - New: source_data_YYYY-MM-DD.xlsx
-    - Legacy: source_YYYY-MM-DD.xlsx
+    Discover latest synchronized Excel snapshot where all providers have data.
+
+    Rules:
+    - Parse all provider source files from both naming styles.
+    - Compute latest date present for every provider in PROVIDER_ORDER.
+    - Return files only for that date, so partial provider uploads do not advance reports.
     """
     candidates = []
     for path in Path(".").glob("*.xlsx"):
@@ -254,32 +257,58 @@ def discover_latest_files_per_source():
             continue
         candidates.append(path)
 
-    by_source = {}
-    by_source_date = {}
+    # source -> {date_str -> best_file_for_that_source_and_date}
+    files_by_source_and_date = {}
+    # institution -> set(date_str)
+    dates_by_institution = {}
+
     for path in candidates:
         source_name, file_date = parse_source_and_date(path.name)
-        if not source_name:
+        if not source_name or not file_date:
             continue
 
-        current = by_source.get(source_name)
-        current_date = by_source_date.get(source_name)
-        candidate_date = parse_iso_date(file_date)
+        institution = institution_from_source(source_name)
+        files_by_source_and_date.setdefault(source_name, {})
+        dates_by_institution.setdefault(institution, set()).add(file_date)
 
-        should_replace = False
-        if current is None:
-            should_replace = True
-        elif candidate_date and current_date:
-            should_replace = (candidate_date > current_date) or (
-                candidate_date == current_date and path.stat().st_mtime > current.stat().st_mtime
-            )
-        elif candidate_date and not current_date:
-            should_replace = True
-        elif not candidate_date and not current_date:
-            should_replace = path.stat().st_mtime > current.stat().st_mtime
+        existing = files_by_source_and_date[source_name].get(file_date)
+        if existing is None or path.stat().st_mtime > existing.stat().st_mtime:
+            files_by_source_and_date[source_name][file_date] = path
 
-        if should_replace:
-            by_source[source_name] = path
-            by_source_date[source_name] = candidate_date
+    required_providers = set(PROVIDER_ORDER)
+    missing_providers = sorted(required_providers - set(dates_by_institution.keys()))
+    if missing_providers:
+        raise RuntimeError(
+            "Missing provider files for: " + ", ".join(missing_providers)
+        )
+
+    common_dates = None
+    for provider in PROVIDER_ORDER:
+        provider_dates = dates_by_institution.get(provider, set())
+        common_dates = provider_dates if common_dates is None else (common_dates & provider_dates)
+
+    if not common_dates:
+        raise RuntimeError(
+            "No synchronized date available across all providers yet."
+        )
+
+    selected_date = max(common_dates)
+
+    by_source = {}
+    for source_name, dated_files in files_by_source_and_date.items():
+        picked = dated_files.get(selected_date)
+        if picked is not None:
+            by_source[source_name] = picked
+
+    selected_institutions = {
+        institution_from_source(source_name)
+        for source_name in by_source.keys()
+    }
+    still_missing = sorted(required_providers - selected_institutions)
+    if still_missing:
+        raise RuntimeError(
+            "Latest synchronized date is incomplete for providers: " + ", ".join(still_missing)
+        )
 
     return by_source
 
@@ -295,6 +324,16 @@ def main():
     print(f"Found {len(data_files)} data source(s):")
     for source, filepath in sorted(data_files.items()):
         print(f"  - {source}: {filepath.name}")
+
+    snapshot_dates = sorted(
+        {
+            parse_source_and_date(filepath.name)[1]
+            for filepath in data_files.values()
+            if parse_source_and_date(filepath.name)[1]
+        }
+    )
+    if snapshot_dates:
+        print(f"Using synchronized snapshot date: {snapshot_dates[-1]}")
 
     # Read all source files, grouped by institution.
     by_institution = {}
