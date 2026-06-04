@@ -30,6 +30,7 @@ jobs:
       - name: Run pipeline (no email)
         env:
           SEND_EMAIL: 'false'
+          REPORT_TRIGGER_API_URL: ${{ vars.REPORT_TRIGGER_API_URL }}
         run: |
           ./.venv/bin/python run_daily_pipeline.py || python run_daily_pipeline.py
 

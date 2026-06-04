@@ -1,0 +1,15 @@
+name = "daily-lt-funds-trigger"
+main = "worker.js"
+compatibility_date = "2026-06-04"
+
+[vars]
+# Comma-separated list of allowed origins, e.g. "https://fundsautomationbot-oss.github.io"
+ALLOWED_ORIGINS = ""
+# Optional public key for lightweight abuse protection (set empty to disable)
+PUBLIC_TRIGGER_KEY = ""
+# owner/repo
+GITHUB_REPOSITORY = "fundsautomationbot-oss/Daily-LT-funds-NAV-data-collector"
+# Workflow file name inside .github/workflows
+GITHUB_WORKFLOW_FILE = "daily_publish.yml"
+# Branch/tag ref for workflow_dispatch
+GITHUB_WORKFLOW_REF = "main"

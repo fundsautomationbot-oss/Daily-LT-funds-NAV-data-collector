@@ -128,6 +128,23 @@ Deploy to GitHub Actions for hands-free daily runs:
    - `PLAYWRIGHT_PROXY_PASSWORD` (optional)
 3. Workflow runs at 07:00 EET weekdays
 
+### One-click update trigger (no browser token prompts)
+
+To let the report page trigger `daily_publish.yml` directly without token prompts or extra pages:
+
+1. Deploy the worker in `infra/trigger-worker/`.
+2. Configure worker vars in `wrangler.toml`:
+    - `ALLOWED_ORIGINS` set to your GitHub Pages origin
+    - `GITHUB_REPOSITORY` set to this repo
+    - `GITHUB_WORKFLOW_FILE` set to `daily_publish.yml`
+    - `GITHUB_WORKFLOW_REF` set to `main`
+3. Set worker secret `GITHUB_WORKFLOW_TOKEN` (GitHub token with workflow dispatch permission).
+4. Publish worker and copy endpoint URL, e.g. `https://<worker-domain>/trigger`.
+5. In GitHub repository settings, create variable `REPORT_TRIGGER_API_URL` with that URL.
+6. Run `daily_publish.yml` once (or regenerate locally with `REPORT_TRIGGER_API_URL` set) so the page embeds the endpoint.
+
+After this, the page button triggers the workflow in one click and polls for newly published data.
+
 ## Dependencies
 
 - **playwright**: Headless browser automation
