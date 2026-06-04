@@ -161,14 +161,25 @@ async function waitForBuildCompletion(dispatchedAt, maxWaitMs) {
 }
 async function checkForUpdates() {
   const btn = document.getElementById('check-updates-btn');
+  btn.disabled = true;
+  // First visit: this device has no visible dates yet — just adopt all published reports immediately, no CI trigger needed.
+  const currentVisible = readVisibleDates();
+  if (!currentVisible.length) {
+    const allDates = getGlobalSortedReports().map(function(r){ return r.date; });
+    saveVisibleDates(allDates);
+    btn.disabled = false;
+    btn.textContent = 'Check for updates';
+    window.location.reload();
+    return;
+  }
+  // Returning device: trigger CI and wait for a genuinely newer date.
   const current = getGlobalSortedReports()[0];
   const baseline = current ? current.date : null;
-  btn.disabled = true;
   btn.textContent = 'Triggering...';
   try {
     const dispatchedAt = await triggerWorkflow();
     if (!dispatchedAt) return;
-    showNotice('Generation triggered for this device. Waiting for publish...', 'info');
+    showNotice('Workflow triggered. Waiting for publish...', 'info');
     btn.textContent = 'Waiting...';
     const done = await waitForBuildCompletion(dispatchedAt);
     if (!done) {
@@ -179,11 +190,13 @@ async function checkForUpdates() {
     window.location.reload();
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Generate for this device';
+    btn.textContent = 'Check for updates';
   }
 }
 function initIndex() {
+  const btn = document.getElementById('check-updates-btn');
   const select = document.getElementById('report-select');
+  // Pending post-build check: see if CI produced a new date.
   const pending = sessionStorage.getItem(PENDING_UPDATE_KEY);
   if (pending) {
     sessionStorage.removeItem(PENDING_UPDATE_KEY);
@@ -192,9 +205,9 @@ function initIndex() {
       const dates = readVisibleDates();
       dates.push(newestGlobal.date);
       saveVisibleDates(dates);
-      showNotice('New report added for this device: ' + newestGlobal.date, 'success');
+      showNotice('New report available: ' + newestGlobal.date, 'success');
     } else {
-      showNotice('No newer complete report found yet.', 'warning');
+      showNotice('Already up to date — no newer report after this pipeline run.', 'info');
     }
   }
 
@@ -205,8 +218,11 @@ function initIndex() {
     option.textContent = report.date;
     select.appendChild(option);
   });
+  // Adjust button label based on whether this device already has reports.
+  const isFirstVisit = !readVisibleDates().length;
+  if (btn) btn.textContent = isFirstVisit ? 'Load on this device' : 'Check for updates';
   if (!sorted.length) {
-    document.getElementById('report-content').innerHTML = '<p class="text-slate-500 text-sm text-center py-16">No reports on this device yet.<br>Tap &ldquo;Generate for this device&rdquo; to load the latest data.</p>';
+    document.getElementById('report-content').innerHTML = '<p class="text-slate-500 text-sm text-center py-16">No reports on this device yet.<br>Tap <strong>Load on this device</strong> to adopt the latest published data.</p>';
   } else {
     select.value = sorted[0].date;
     setSelection(sorted[0]);
@@ -215,7 +231,6 @@ function initIndex() {
     const selected = reports.find(function(r){ return r.date === select.value; });
     if (selected) setSelection(selected);
   });
-  var btn = document.getElementById('check-updates-btn');
   if (btn) btn.addEventListener('click', checkForUpdates);
 }
 document.addEventListener('DOMContentLoaded', initIndex);
