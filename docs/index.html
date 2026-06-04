@@ -86,7 +86,7 @@ async function setSelection(report) {
     const res = await fetch(report.html + '?t=' + Date.now(), { cache: 'no-store' });
     const html = await res.text();
     const tmp = document.createElement('div');
-    const m = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const m = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     tmp.innerHTML = m ? m[1] : html;
     const style = tmp.querySelector('style');
     const table = tmp.querySelector('table');
