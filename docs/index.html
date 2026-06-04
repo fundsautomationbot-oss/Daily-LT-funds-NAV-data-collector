@@ -24,7 +24,7 @@
           Device mode is enabled: reports generated from this browser are shown only on this browser.
         </div>
         <div id="report-body" class="overflow-x-auto rounded-3xl border border-slate-200 bg-white min-h-[16rem]">
-          <div id="report-content" class="p-6 text-center text-slate-400 text-sm py-16">Tap &ldquo;Generate for this device&rdquo; to load reports on this browser.</div>
+          <div id="report-content"><p class="text-center text-slate-400 text-sm py-16 px-4">Tap &ldquo;Generate for this device&rdquo; to load reports on this browser.</p></div>
         </div>
       </div>
     </section>
@@ -81,7 +81,7 @@ async function setSelection(report) {
   const link = document.getElementById('download-link');
   const body = document.getElementById('report-content');
   link.href = report.xlsx;
-  body.innerHTML = '<p class="text-slate-400 text-sm text-center py-16">Loading report…</p>';
+  body.innerHTML = '<p class="text-slate-400 text-sm text-center py-16 px-4">Loading report…</p>';
   try {
     const res = await fetch(report.html + '?t=' + Date.now(), { cache: 'no-store' });
     const html = await res.text();
