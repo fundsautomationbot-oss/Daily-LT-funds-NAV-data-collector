@@ -12,3 +12,6 @@ com.pensionscraper*.plist
 
 # Allow generated files served from docs/ to be tracked for GitHub Pages.
 !docs/*.xlsx
+
+# Local Wrangler state
+infra/trigger-worker/.wrangler/
