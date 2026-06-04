@@ -149,11 +149,11 @@ def format_report_index(reports, trigger_api_url):
     if not reports:
         return (
             "<!doctype html>\n"
-            "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+            "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">\n"
             "<title>Daily pension reports</title>\n"
             "<script src=\"https://cdn.tailwindcss.com\"></script>\n"
             "</head><body class=\"bg-slate-50 text-slate-900 antialiased\">\n"
-            "<div class=\"min-h-screen flex items-center justify-center px-4 py-8\">\n"
+            "<div class=\"min-h-screen flex items-center justify-center px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))]\">\n"
             "  <main class=\"w-full max-w-4xl\">\n"
             "    <section class=\"rounded-[32px] border border-slate-200 bg-white/95 p-8 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.35)] backdrop-blur-xl\">\n"
             "      <div class=\"flex flex-col gap-6 md:gap-8\">\n"
@@ -181,13 +181,13 @@ def format_report_index(reports, trigger_api_url):
 
     return (
         "<!doctype html>\n"
-        "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+        "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">\n"
         "<title>Daily pension data</title>\n"
         "<script src=\"https://cdn.tailwindcss.com\"></script>\n"
         "</head><body class=\"bg-slate-50 text-slate-900 antialiased\">\n"
-        "<div class=\"min-h-screen px-4 py-8 sm:px-6 lg:px-8\">\n"
+        "<div class=\"min-h-screen px-3 py-4 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8 lg:px-8\">\n"
         "  <main class=\"mx-auto w-full max-w-7xl\">\n"
-        "    <section class=\"rounded-[32px] border border-slate-200 bg-white/95 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.35)]\">\n"
+        "    <section class=\"rounded-[24px] sm:rounded-[32px] border border-slate-200 bg-white/95 p-4 sm:p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.35)]\">\n"
         "      <div class=\"flex flex-col gap-6\">\n"
         "        <div class=\"flex flex-col gap-4 md:flex-row md:items-end md:justify-between\">\n"
         "          <div>\n"
@@ -195,17 +195,17 @@ def format_report_index(reports, trigger_api_url):
         "            <h1 class=\"mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl\">Single-page dashboard</h1>\n"
         "            <p class=\"mt-3 max-w-2xl text-base leading-7 text-slate-600\">Choose a date and view the full report below without leaving this page.</p>\n"
         "          </div>\n"
-        "          <div class=\"flex flex-wrap items-center gap-3\">\n"
+        "          <div class=\"w-full md:w-auto grid grid-cols-1 sm:grid-cols-[auto_minmax(12rem,1fr)_auto_auto] items-center gap-2 sm:gap-3\">\n"
         "            <label class=\"text-sm font-medium text-slate-700\" for=\"report-select\">Report date</label>\n"
-        "            <select id=\"report-select\" class=\"rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200\"></select>\n"
-                "            <button id=\"check-updates-btn\" class=\"rounded-full border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100\">Generate for this device</button>\n"
-        "            <a id=\"download-link\" class=\"rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700\" href=\"#\" download>Download Excel</a>\n"
+        "            <select id=\"report-select\" class=\"w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200\"></select>\n"
+            "            <button id=\"check-updates-btn\" class=\"w-full sm:w-auto justify-center rounded-full border border-slate-400 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100\">Generate for this device</button>\n"
+        "            <a id=\"download-link\" class=\"w-full sm:w-auto text-center rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700\" href=\"#\" download>Download Excel</a>\n"
         "          </div>\n"
         "        </div>\n"
         "        <div class=\"rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600\">\n"
                 "          Device mode is enabled: reports generated from this browser are shown only on this browser.\n"
         "        </div>\n"
-        f"        <iframe id=\"report-frame\" title=\"Pension report viewer\" src=\"{latest['html']}\" class=\"h-[76vh] w-full rounded-3xl border border-slate-200 bg-white\"></iframe>\n"
+        f"        <iframe id=\"report-frame\" title=\"Pension report viewer\" src=\"{latest['html']}\" class=\"h-[62vh] sm:h-[70vh] lg:h-[76vh] w-full rounded-3xl border border-slate-200 bg-white\"></iframe>\n"
         "      </div>\n"
         "    </section>\n"
         "  </main>\n"
@@ -269,7 +269,7 @@ def format_report_index(reports, trigger_api_url):
         "                  type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :\n"
         "                  'bg-blue-50 border-blue-200 text-blue-800';\n"
         "  const n = document.createElement('div');\n"
-        "  n.className = 'fixed top-4 right-4 p-4 rounded-2xl border ' + bgClass + ' shadow-lg z-50 max-w-sm';\n"
+        "  n.className = 'fixed top-3 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm p-4 rounded-2xl border ' + bgClass + ' shadow-lg z-50';\n"
         "  n.textContent = message;\n"
         "  document.body.appendChild(n);\n"
         "  setTimeout(function(){ n.remove(); }, 7000);\n"
@@ -802,8 +802,8 @@ def main():
             '<table border="0" class="dataframe min-w-full divide-y divide-slate-200 text-sm text-slate-700 bg-white shadow-sm">'
         )
         html_table = html_table.replace('<thead>', '<thead class="bg-slate-100 text-slate-900">')
-        html_table = html_table.replace('<th>', '<th class="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-900">')
-        html_table = html_table.replace('<td>', '<td class="whitespace-nowrap px-4 py-3">')
+        html_table = html_table.replace('<th>', '<th class="whitespace-nowrap px-3 py-2 sm:px-4 sm:py-3 text-left font-semibold text-slate-900">')
+        html_table = html_table.replace('<td>', '<td class="whitespace-nowrap px-3 py-2 sm:px-4 sm:py-3">')
         html_table = re.sub(
             r'<tr class="provider"><td colspan="(\d+)">(.*?)</td></tr>',
             r'<tr class="provider bg-slate-100 text-slate-700 uppercase tracking-[0.15em]"><td colspan="\1" class="px-4 py-3 font-semibold">\2</td></tr>',
@@ -815,7 +815,7 @@ def main():
 
         html_content = (
             "<!doctype html>\n"
-            "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+            "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">\n"
             f"<title>Pension data {data_date}</title>\n"
             "<script src=\"https://cdn.tailwindcss.com\"></script>\n"
             "<style>\n"
@@ -825,26 +825,26 @@ def main():
             "  table.dataframe tbody tr.provider td { background: #f1f5f9; }\n"
             "</style>\n"
             "</head><body class=\"bg-slate-50 text-slate-900 antialiased\">\n"
-            "<div class=\"min-h-screen py-10 px-4 sm:px-6 lg:px-8\">\n"
+            "<div class=\"min-h-screen py-4 px-3 pb-[max(2rem,env(safe-area-inset-bottom))] sm:py-10 sm:px-6 lg:px-8\">\n"
             "  <main class=\"mx-auto max-w-6xl\">\n"
-            "    <section class=\"overflow-hidden rounded-[32px] border border-slate-200 bg-white/95 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.20)]\">\n"
+            "    <section class=\"overflow-hidden rounded-[24px] sm:rounded-[32px] border border-slate-200 bg-white/95 p-4 sm:p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.20)]\">\n"
             "      <div class=\"flex flex-col gap-4 md:flex-row md:items-start md:justify-between\">\n"
             "        <div class=\"min-w-0\">\n"
             f"          <p class=\"text-xs uppercase tracking-[0.35em] text-slate-500\">Report overview</p>\n"
             f"          <h1 class=\"mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl\">Pension data {data_date}</h1>\n"
             f"          <p class=\"mt-2 text-sm text-slate-500\">Generated: {datetime.now().isoformat(timespec='seconds')}</p>\n"
             "        </div>\n"
-            "        <div class=\"flex flex-wrap items-center gap-3\">\n"
-            "          <a class=\"inline-flex items-center rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100\" href=\"index.html\">← Back to history</a>\n"
-            f"          <a class=\"inline-flex items-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800\" href=\"{output_file}\" download>Download Excel</a>\n"
-            "          <button id=\"check-updates-btn\" class=\"inline-flex items-center rounded-full border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100\" onclick=\"checkForUpdates()\">🔄 Check for updates</button>\n"
+            "        <div class=\"grid w-full sm:w-auto grid-cols-1 sm:grid-cols-3 items-center gap-2 sm:gap-3\">\n"
+            "          <a class=\"inline-flex items-center justify-center rounded-full border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100\" href=\"index.html\">← Back to history</a>\n"
+            f"          <a class=\"inline-flex items-center justify-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800\" href=\"{output_file}\" download>Download Excel</a>\n"
+            "          <button id=\"check-updates-btn\" class=\"inline-flex items-center justify-center rounded-full border border-slate-400 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100\" onclick=\"checkForUpdates()\">🔄 Check for updates</button>\n"
             "        </div>\n"
             "      </div>\n"
             "      <div class=\"mt-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]\">\n"
             "        <input id=\"filter-input\" class=\"h-12 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 text-slate-900 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200\" placeholder=\"Filter funds…\" aria-label=\"Filter funds\" />\n"
-            "        <p class=\"whitespace-nowrap text-sm text-slate-500\">Filter the table by fund name, provider, or date.</p>\n"
+            "        <p class=\"text-sm text-slate-500\">Filter the table by fund name, provider, or date.</p>\n"
             "      </div>\n"
-            "      <div class=\"mt-6 overflow-x-auto rounded-3xl border border-slate-200 bg-slate-50 p-0\">\n"
+            "      <div class=\"mt-6 -mx-1 overflow-x-auto rounded-3xl border border-slate-200 bg-slate-50 p-0 sm:mx-0\">\n"
             "        <div class=\"overflow-hidden rounded-3xl\">\n"
             + html_table +
             "        </div>\n"
@@ -862,7 +862,7 @@ def main():
             "                  type === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :\n"
             "                  type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :\n"
             "                  'bg-blue-50 border-blue-200 text-blue-800';\n"
-            "  notification.className = `fixed top-4 right-4 p-4 rounded-2xl border ${bgClass} shadow-lg z-50 max-w-sm`;\n"
+            "  notification.className = `fixed top-3 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm p-4 rounded-2xl border ${bgClass} shadow-lg z-50`;\n"
             "  notification.textContent = message;\n"
             "  document.body.appendChild(notification);\n"
             "  setTimeout(() => notification.remove(), 7000);\n"
