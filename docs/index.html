@@ -23,14 +23,15 @@
         <div class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
           Device mode is enabled: reports generated from this browser are shown only on this browser.
         </div>
-        <iframe id="report-frame" title="Pension report viewer" src="pension_data_combined_2026-06-02.html" class="h-[76vh] w-full rounded-3xl border border-slate-200 bg-white"></iframe>
+        <iframe id="report-frame" title="Pension report viewer" src="pension_data_combined_2026-06-03.html" class="h-[76vh] w-full rounded-3xl border border-slate-200 bg-white"></iframe>
       </div>
     </section>
   </main>
 </div>
 <script>
 const reports = [
-{date: "2026-06-02", html: "pension_data_combined_2026-06-02.html", xlsx: "pension_data_combined_2026-06-02.xlsx"}
+{date: "2026-06-02", html: "pension_data_combined_2026-06-02.html", xlsx: "pension_data_combined_2026-06-02.xlsx"},
+        {date: "2026-06-03", html: "pension_data_combined_2026-06-03.html", xlsx: "pension_data_combined_2026-06-03.xlsx"}
 ];
 const TRIGGER_API_URL = 'https://daily-lt-funds-trigger.daily-lt-funds-trigger.workers.dev/trigger';
 const DEVICE_ID_KEY = 'ltFundsDeviceId';
