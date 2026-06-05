@@ -1198,7 +1198,7 @@ def main():
             "</body></html>"
         )
         html_path.write_text(html_content, encoding="utf-8")
-        prune_old_reports(docs_dir)
+        # Keep full published history; do not prune old report files.
         write_index_page(docs_dir)
         print(f"\n✅ HTML report written to: {html_path}")
     except Exception as _e:
