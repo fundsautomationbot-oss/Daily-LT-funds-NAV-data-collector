@@ -16,7 +16,6 @@
           <div class="w-full md:w-auto grid grid-cols-1 sm:grid-cols-[auto_minmax(12rem,1fr)_auto_auto] items-center gap-2 sm:gap-3">
             <label class="text-sm font-medium text-slate-700" for="report-select">Report date</label>
             <select id="report-select" class="w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"></select>
-            <button id="check-updates-btn" class="w-full sm:w-auto justify-center rounded-full border border-slate-400 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Load published data</button>
             <a id="download-link" class="w-full sm:w-auto text-center rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700" href="#" download>Download Excel</a>
           </div>
         </div>
@@ -26,7 +25,7 @@
           <p id="last-check-note" class="mt-1 text-xs text-slate-500">Last automatic check: not yet</p>
         </div>
         <div id="report-body" class="overflow-x-auto rounded-3xl border border-slate-200 bg-white min-h-[16rem]">
-          <div id="report-content"><p class="text-center text-slate-400 text-sm py-16 px-4">Tap &ldquo;Generate for this device&rdquo; to load reports on this browser.</p></div>
+          <div id="report-content"><p class="text-center text-slate-400 text-sm py-16 px-4">Published reports will sync automatically on this browser.</p></div>
         </div>
       </div>
     </section>
@@ -323,39 +322,24 @@ async function waitForBuildCompletion(dispatchedAt, maxWaitMs) {
   }
   return null;
 }
-async function checkForUpdates() {
-  const btn = document.getElementById('check-updates-btn');
-  btn.disabled = true;
-  btn.textContent = 'Syncing...';
+async function initialPublishedSync() {
   markPublishedCheckNow();
   try {
     const published = (await fetchPublishedReports()).sort(byNewest);
-    if (!published.length) {
-      showNotice('No published reports found at the moment.', 'warning');
-      return;
-    }
+    if (!published.length) return;
     const added = mergePublishedReportsIntoVisible(published);
-    if (added) {
-      const now = getVilniusNowParts();
-      const state = readAutoCheckState(now.dateKey);
-      state.found = true;
-      writeAutoCheckState(state);
-      showNotice('Loaded ' + added + ' newly published report(s). Reloading dashboard...', 'success');
-      window.location.reload();
-      return;
-    }
-    showNotice('Already up to date with published data.', 'info');
+    if (!added) return;
+    const now = getVilniusNowParts();
+    const state = readAutoCheckState(now.dateKey);
+    state.found = true;
+    writeAutoCheckState(state);
+    showNotice('Loaded ' + added + ' newly published report(s). Reloading dashboard...', 'success');
+    window.location.reload();
   } catch (e) {
-    const msg = (e && e.message) ? e.message : 'network error';
-    showNotice('Could not sync published data: ' + msg, 'error');
-  } finally {
-    btn.disabled = false;
-    const isFirstVisit = !readVisibleDates().length;
-    btn.textContent = isFirstVisit ? 'Load published data' : 'Sync published data';
+    // Silent on managed devices when networking is restricted.
   }
 }
 function initIndex() {
-  const btn = document.getElementById('check-updates-btn');
   const select = document.getElementById('report-select');
   updateLastCheckLabel();
   // Pending post-build check: see if CI produced a new date.
@@ -380,11 +364,8 @@ function initIndex() {
     option.textContent = report.date;
     select.appendChild(option);
   });
-  // Adjust button label based on whether this device already has reports.
-  const isFirstVisit = !readVisibleDates().length;
-  if (btn) btn.textContent = isFirstVisit ? 'Load published data' : 'Sync published data';
   if (!sorted.length) {
-    document.getElementById('report-content').innerHTML = '<p class="text-slate-500 text-sm text-center py-16">No reports on this device yet.<br>Tap <strong>Load published data</strong> to adopt the latest published data.</p>';
+    document.getElementById('report-content').innerHTML = '<p class="text-slate-500 text-sm text-center py-16">No reports on this device yet.<br>Published data will sync automatically when available.</p>';
   } else {
     select.value = sorted[0].date;
     setSelection(sorted[0]);
@@ -393,7 +374,7 @@ function initIndex() {
     const selected = reports.find(function(r){ return r.date === select.value; });
     if (selected) setSelection(selected);
   });
-  if (btn) btn.addEventListener('click', checkForUpdates);
+  initialPublishedSync();
   maybeAutoCheckPublishedReports();
 }
 document.addEventListener('DOMContentLoaded', initIndex);
