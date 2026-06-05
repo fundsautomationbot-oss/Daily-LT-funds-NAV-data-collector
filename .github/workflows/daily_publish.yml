@@ -2,7 +2,7 @@ name: Daily pipeline and publish docs
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # daily at 06:00 UTC
+    - cron: '0 12 * * *'   # daily at 12:00 UTC = 15:00 Vilnius (UTC+3 summer)
   workflow_dispatch: {}
 
 permissions:
