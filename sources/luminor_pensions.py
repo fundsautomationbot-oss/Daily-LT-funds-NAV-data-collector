@@ -1,97 +1,309 @@
 #!/usr/bin/env python3
 """
-Luminor pension funds scraper (II pillar NAV data).
+Luminor pension funds scraper.
+Extracts II pillar fund data and writes an XLSX via BaseScraper.
 """
-
 import re
-from datetime import datetime
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+import sys
+from pathlib import Path
 
-URL = "https://www.luminor.lt/en/pension-funds"
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-EXCLUDED_FUNDS = set()  # add fund names here if needed
-
-
-def dismiss_cookie_modal(page):
-    """Try to close cookie popup if it exists."""
-    try:
-        page.locator("button:has-text('Accept')").click(timeout=3000)
-    except Exception:
-        pass
+from base_scraper import BaseScraper
 
 
-def scrape_luminor():
-    results = []
+EXCLUDED_FUNDS = {
+    "Luminor ateitis 16–50",
+    "Luminor ateitis 50–58",
+    "Luminor ateitis 58+",
+    "Luminor tvari ateitis index",
+    "Luminor ateitis akciju index",
+}
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+LUMINOR_II_FUND_IDS = ["15", "16", "17", "18", "19", "20", "23", "21"]
+EN_FALLBACK_URL = "https://www.luminor.lt/en/pension-funds"
 
-        page.goto(URL, timeout=60000)
 
-        for attempt in range(3):
-            dismiss_cookie_modal(page)
+class LuminorPensionsScraper(BaseScraper):
+    """Scrapes Luminor II pillar pension fund data from multiple page layouts."""
 
+    def __init__(self):
+        super().__init__("luminor_pensions")
+
+    def setup_browser(self):
+        """Use a realistic browser fingerprint for Luminor pages."""
+        from playwright.sync_api import sync_playwright
+
+        self._playwright = sync_playwright().start()
+        self.browser = self._playwright.chromium.launch(
+            headless=self._is_headless(),
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+                "--disable-gpu",
+            ],
+        )
+        self.context = self.browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            locale="lt-LT",
+            timezone_id="Europe/Vilnius",
+        )
+        self.page = self.context.new_page()
+        try:
+            self.page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+        except Exception:
+            pass
+        return self.page
+
+    def get_url(self) -> str:
+        return "https://www.luminor.lt/lt/rinkis-fonda"
+
+    def dismiss_cookie_modal(self, page):
+        selectors = [
+            "button:has-text('PRIIMTI VISUS')",
+            "button:has-text('Priimti visus')",
+            "button:has-text('Accept all')",
+            "button:has-text('Accept')",
+            "#onetrust-accept-btn-handler",
+        ]
+        for selector in selectors:
             try:
-                page.wait_for_selector("text=Unit value", timeout=10000)
+                page.locator(selector).first.click(timeout=3000, force=True)
                 break
-            except PlaywrightTimeoutError:
-                if attempt == 2:
-                    browser.close()
-                    raise
-                page.wait_for_timeout(2000)
+            except Exception:
+                pass
+        page.wait_for_timeout(400)
 
+    def extract_fund_ids(self, page) -> list:
+        """Discover currently available II-pillar fund IDs from page links."""
+        try:
+            ids = page.evaluate(
+                '''() => {
+                    const values = new Set();
+                    const re = /[?&]fund=(\d+)/;
+                    const nodes = document.querySelectorAll("a[href*='fund_type=pension'][href*='fund=']");
+                    for (const node of nodes) {
+                        const href = node.getAttribute('href') || '';
+                        const match = href.match(re);
+                        if (match) values.add(match[1]);
+                    }
+                    return Array.from(values);
+                }''',
+            )
+            if isinstance(ids, list) and ids:
+                return [str(item) for item in ids]
+        except Exception:
+            pass
+        return []
+
+    def extract_fund_payload(self, page) -> tuple:
+        """Read fund payload from modern drupalSettings or legacy Drupal.settings."""
+        payload = page.evaluate(
+            '''() => {
+                const legacy = window.Drupal && window.Drupal.settings ? window.Drupal.settings : null;
+                const modern = window.drupalSettings || null;
+                const settings = modern || legacy || {};
+                const dnb = settings.dnbPensionFunds || null;
+                if (!dnb) return { rates: null, history: null };
+                return {
+                    rates: dnb.fundRates || dnb.fund_rates || null,
+                    history: dnb.fundRatesHistory || dnb.fund_rates_history || null,
+                };
+            }''',
+        )
+        if not isinstance(payload, dict):
+            return None, None
+        return payload.get("rates"), payload.get("history")
+
+    def parse_text_fallback(self, page) -> list:
+        """Fallback parser for the english text-heavy page layout."""
+        results = []
         body = page.inner_text("body")
 
-        # Extract data date
         data_date = None
         date_match = re.search(
-            r"(?:Unit value date|Vieneto vertės data)\s*[^\d]*(\d{4}-\d{2}-\d{2})",
-            body
+            r"(?:Unit value date|Vieneto vertes data)\s*[^\d]*(\d{4}[-.]\d{2}[-.]\d{2})",
+            body,
+            flags=re.IGNORECASE,
         )
         if date_match:
-            data_date = date_match.group(1)
+            data_date = date_match.group(1).replace(".", "-")
 
-        print(f"Data date: {data_date}")
-
-        # Split into fund blocks
         blocks = re.split(r"\bFund Luminor\b", body)
-
         for block in blocks[1:]:
-            text = "Fund Luminor " + block[:800]
-
+            text = "Fund Luminor " + block[:900]
             fund_match = re.match(r"Fund Luminor\s+([^\n|]+)", text)
             if not fund_match:
                 continue
 
             fund_name = fund_match.group(1).strip()
-
-            if fund_name in EXCLUDED_FUNDS:
+            if not fund_name or fund_name in EXCLUDED_FUNDS:
                 continue
 
-            unit_value_match = re.search(r"Unit value\s*([\d.,]+)", text)
-            nav_match = re.search(r"Net asset value\s*([\d\s.,]+)", text)
-
-            if not unit_value_match or not nav_match:
+            unit_value_match = re.search(r"Unit value\s*([\d.,]+)", text, flags=re.IGNORECASE)
+            nav_match = re.search(r"Net asset value\s*([\d\s.,]+)", text, flags=re.IGNORECASE)
+            if not unit_value_match and not nav_match:
                 continue
 
-            unit_value = unit_value_match.group(1).replace(",", "").strip()
-            net_assets = nav_match.group(1).replace(" ", "").replace(",", "").strip()
+            unit_value = unit_value_match.group(1).strip() if unit_value_match else None
+            net_assets = nav_match.group(1).strip() if nav_match else None
 
-            results.append({
-                "Fund name": fund_name,
-                "Date": data_date,
-                "Unit value": unit_value,
-                "Net assets": net_assets,
-            })
+            results.append(
+                {
+                    "Fund name": fund_name,
+                    "Data": data_date,
+                    "Vieneto vertė": unit_value,
+                    "Grynieji aktyvai": net_assets,
+                }
+            )
 
-        browser.close()
+        return results
 
-    print(f"Extracted {len(results)} funds")
-    return results
+    def scrape_data(self, page) -> list:
+        results = []
+
+        # 1) Primary route: iterate fund detail views and read drupal settings payload.
+        try:
+            self.dismiss_cookie_modal(page)
+            page.wait_for_timeout(1000)
+
+            discovered_ids = self.extract_fund_ids(page)
+            fund_ids = discovered_ids if discovered_ids else LUMINOR_II_FUND_IDS
+            if discovered_ids:
+                print(f"  Discovered {len(discovered_ids)} fund IDs from live page")
+            else:
+                print("  Using fallback known Luminor fund IDs")
+
+            for fund_id in fund_ids:
+                fund_url = f"{self.get_url()}?fund_type=pension&fund={fund_id}&currency=eur&period=3year"
+                page.goto(fund_url, wait_until="domcontentloaded", timeout=90000)
+                self.dismiss_cookie_modal(page)
+                page.wait_for_timeout(900)
+
+                fund_rates, fund_history = self.extract_fund_payload(page)
+                if not isinstance(fund_rates, dict):
+                    continue
+
+                fund_name = (
+                    fund_rates.get("name_alias_lt")
+                    or fund_rates.get("name_lt")
+                    or fund_rates.get("name")
+                    or fund_rates.get("title")
+                )
+                if not fund_name or fund_name in EXCLUDED_FUNDS:
+                    continue
+
+                data_date = None
+                if isinstance(fund_history, dict):
+                    date_keys = [
+                        key
+                        for key in fund_history.keys()
+                        if isinstance(key, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", key)
+                    ]
+                    if date_keys:
+                        data_date = max(date_keys)
+                if not data_date:
+                    candidate_date = fund_rates.get("date") or fund_rates.get("updated_at")
+                    if isinstance(candidate_date, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", candidate_date):
+                        data_date = candidate_date
+
+                unit_value = fund_rates.get("unit_price_eur") or fund_rates.get("unit_price")
+                net_assets = fund_rates.get("nav_eur") or fund_rates.get("nav")
+                if unit_value is None and net_assets is None:
+                    continue
+
+                results.append(
+                    {
+                        "Fund name": fund_name,
+                        "Data": data_date,
+                        "Vieneto vertė": unit_value,
+                        "Grynieji aktyvai": net_assets,
+                    }
+                )
+
+            if results:
+                print(f"  Parsed {len(results)} funds from live selector payload")
+                return results
+        except Exception as exc:
+            print(f"  Selector payload parse failed: {exc}")
+
+        # 2) Legacy table fallback.
+        rows = []
+        table_selector = 'table[aria-describedby="funds-table-label"] tbody tr'
+        for attempt in range(1, 4):
+            page.wait_for_load_state("domcontentloaded")
+            self.dismiss_cookie_modal(page)
+            try:
+                page.wait_for_selector(table_selector, timeout=20000)
+            except Exception:
+                pass
+            rows = page.query_selector_all(table_selector)
+            print(f"  Legacy table attempt {attempt}: found {len(rows)} rows")
+            if len(rows) >= 6:
+                break
+            if attempt < 3:
+                page.wait_for_timeout(1500)
+                try:
+                    page.reload(wait_until="domcontentloaded", timeout=60000)
+                except Exception:
+                    pass
+
+        if rows:
+            data_date = None
+            try:
+                body = page.inner_text("body")
+                match = re.search(r"Vieneto verciu data[:\s]+(\d{4})[.-](\d{2})[.-](\d{2})", body)
+                if match:
+                    data_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+            except Exception:
+                pass
+
+            for row in rows:
+                cells = row.query_selector_all("td")
+                if len(cells) < 4:
+                    continue
+
+                fund_name = cells[0].inner_text().strip()
+                if not fund_name or fund_name in EXCLUDED_FUNDS:
+                    continue
+
+                unit_value = cells[1].inner_text().strip().replace("EUR", "").strip()
+                net_assets = cells[3].inner_text().strip()
+
+                results.append(
+                    {
+                        "Fund name": fund_name,
+                        "Data": data_date,
+                        "Vieneto vertė": unit_value,
+                        "Grynieji aktyvai": net_assets,
+                    }
+                )
+
+            if results:
+                print(f"  Parsed {len(results)} funds from legacy table")
+                return results
+
+        # 3) English text page fallback.
+        try:
+            page.goto(EN_FALLBACK_URL, wait_until="domcontentloaded", timeout=90000)
+            self.dismiss_cookie_modal(page)
+            text_results = self.parse_text_fallback(page)
+            if text_results:
+                print(f"  Parsed {len(text_results)} funds from english text fallback")
+                return text_results
+        except Exception as exc:
+            print(f"  English fallback parse failed: {exc}")
+
+        return results
 
 
 if __name__ == "__main__":
-    data = scrape_luminor()
-    for item in data:
-        print(item)
+    scraper = LuminorPensionsScraper()
+    sys.exit(0 if scraper.run() else 1)
