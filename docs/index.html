@@ -35,7 +35,7 @@ const reports = [
 {date: "2026-06-02", html: "pension_data_combined_2026-06-02.html", xlsx: "pension_data_combined_2026-06-02.xlsx"},
         {date: "2026-06-03", html: "pension_data_combined_2026-06-03.html", xlsx: "pension_data_combined_2026-06-03.xlsx"}
 ];
-const TRIGGER_API_URL = 'https://daily-lt-funds-trigger.daily-lt-funds-trigger.workers.dev/trigger';
+const TRIGGER_API_URL = '';
 const DEVICE_ID_KEY = 'ltFundsDeviceId';
 const DEVICE_DATES_PREFIX = 'ltFundsVisibleDates:';
 const PENDING_UPDATE_KEY = 'ltFundsPendingBaseline';
@@ -137,8 +137,10 @@ async function triggerWorkflow() {
     return null;
   } catch (e) {
     var msg = (e && e.message) ? e.message : 'network error';
-    if (window.location.protocol === 'file:' || msg === 'Failed to fetch') {
+    if (window.location.protocol === 'file:') {
       msg = 'Request blocked in this context. Use the deployed page or local web server.';
+    } else if (msg === 'Failed to fetch') {
+      msg = 'Network error. Check your connection, or it may be a CORS restriction. Check browser console (F12) for details.';
     }
     showNotice('Error calling trigger endpoint: ' + msg, 'error');
     return null;
