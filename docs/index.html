@@ -22,6 +22,7 @@
         </div>
         <div class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
           Device mode is enabled: reports generated from this browser are shown only on this browser.
+          <p id="last-check-note" class="mt-2 text-xs text-slate-500">Last automatic check: not yet</p>
         </div>
         <div id="report-body" class="overflow-x-auto rounded-3xl border border-slate-200 bg-white min-h-[16rem]">
           <div id="report-content"><p class="text-center text-slate-400 text-sm py-16 px-4">Tap &ldquo;Generate for this device&rdquo; to load reports on this browser.</p></div>
@@ -35,10 +36,13 @@ const reports = [
 {date: "2026-06-02", html: "pension_data_combined_2026-06-02.html", xlsx: "pension_data_combined_2026-06-02.xlsx"},
         {date: "2026-06-03", html: "pension_data_combined_2026-06-03.html", xlsx: "pension_data_combined_2026-06-03.xlsx"}
 ];
-const TRIGGER_API_URL = 'https://daily-lt-funds-trigger.daily-lt-funds-trigger.workers.dev/trigger';
+const TRIGGER_API_URL = '';
 const DEVICE_ID_KEY = 'ltFundsDeviceId';
 const DEVICE_DATES_PREFIX = 'ltFundsVisibleDates:';
 const PENDING_UPDATE_KEY = 'ltFundsPendingBaseline';
+const LAST_PUBLISHED_CHECK_KEY = 'ltFundsLastPublishedCheckAt';
+const NEXT_PUBLISHED_CHECK_KEY = 'ltFundsNextPublishedCheckAt';
+const AUTO_CHECK_INTERVAL_MS = 8 * 60 * 60 * 1000;
 function byNewest(a, b) { return b.date.localeCompare(a.date); }
 function getDeviceId() {
   let id = localStorage.getItem(DEVICE_ID_KEY);
@@ -76,6 +80,74 @@ function saveVisibleDates(dates) {
 function deviceReports() {
   const allowed = new Set(readVisibleDates());
   return getGlobalSortedReports().filter(function(r){ return allowed.has(r.date); });
+}
+function formatLocalTimestamp(iso) {
+  if (!iso) return 'not yet';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'not yet';
+  return d.toLocaleString();
+}
+function updateLastCheckLabel() {
+  const el = document.getElementById('last-check-note');
+  if (!el) return;
+  const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);
+  el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);
+}
+function markPublishedCheckNow() {
+  const nowIso = new Date().toISOString();
+  localStorage.setItem(LAST_PUBLISHED_CHECK_KEY, nowIso);
+  localStorage.setItem(NEXT_PUBLISHED_CHECK_KEY, String(Date.now() + AUTO_CHECK_INTERVAL_MS));
+  updateLastCheckLabel();
+  return nowIso;
+}
+function parseReportsFromIndexHtml(html) {
+  const match = html.match(/const reports = \[([\s\S]*?)\n\];/);
+  if (!match || !match[1]) return [];
+  try {
+    const parsed = (new Function('return [' + match[1] + '];'))();
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(function(item){ return item && item.date && item.html && item.xlsx; });
+  } catch (e) {
+    return [];
+  }
+}
+async function fetchPublishedReports() {
+  const pagePath = window.location.pathname || '/';
+  const res = await fetch(pagePath + '?t=' + Date.now(), { cache: 'no-store' });
+  if (!res.ok) throw new Error('publish check failed (' + res.status + ')');
+  const html = await res.text();
+  return parseReportsFromIndexHtml(html);
+}
+async function maybeAutoCheckPublishedReports() {
+  if (window.location.protocol === 'file:') {
+    updateLastCheckLabel();
+    return;
+  }
+  const nextCheckAt = Number(localStorage.getItem(NEXT_PUBLISHED_CHECK_KEY) || '0');
+  if (Date.now() < nextCheckAt) {
+    updateLastCheckLabel();
+    return;
+  }
+  markPublishedCheckNow();
+  try {
+    const published = (await fetchPublishedReports()).sort(byNewest);
+    if (!published.length) return;
+    const currentDates = readVisibleDates();
+    const visibleSet = new Set(currentDates);
+    let added = 0;
+    published.forEach(function(report){
+      if (!visibleSet.has(report.date)) {
+        visibleSet.add(report.date);
+        added += 1;
+      }
+    });
+    if (!added) return;
+    saveVisibleDates(Array.from(visibleSet));
+    showNotice('New published data found (' + added + '). Reloading dashboard...', 'success');
+    window.location.reload();
+  } catch (e) {
+    // Keep silent here: managed devices may block some requests.
+  }
 }
 async function setSelection(report) {
   const link = document.getElementById('download-link');
@@ -198,6 +270,7 @@ async function checkForUpdates() {
 function initIndex() {
   const btn = document.getElementById('check-updates-btn');
   const select = document.getElementById('report-select');
+  updateLastCheckLabel();
   // Pending post-build check: see if CI produced a new date.
   const pending = sessionStorage.getItem(PENDING_UPDATE_KEY);
   if (pending) {
@@ -234,6 +307,7 @@ function initIndex() {
     if (selected) setSelection(selected);
   });
   if (btn) btn.addEventListener('click', checkForUpdates);
+  maybeAutoCheckPublishedReports();
 }
 document.addEventListener('DOMContentLoaded', initIndex);
 </script>
