@@ -82,12 +82,45 @@ class LuminorPensionsScraper(BaseScraper):
         page.wait_for_timeout(400)
 
     def extract_fund_ids(self, page) -> list:
-        """Discover currently available II-pillar fund IDs from page links."""
+        """Discover currently available II-pillar fund IDs from settings or links."""
+        # Primary source in current Luminor page: drupal settings payload.
+        try:
+            ids_from_settings = page.evaluate(
+                '''() => {
+                    const settings = window.drupalSettings || (window.Drupal && window.Drupal.settings) || {};
+                    const dnb = settings.dnbPensionFunds || {};
+                    const groups = dnb.funds || {};
+                    const values = new Set();
+
+                    const visitGroup = (group) => {
+                        if (!group || typeof group !== 'object') return;
+                        for (const entry of Object.values(group)) {
+                            const type = (entry.type || '').toLowerCase();
+                            const id = String(entry.fund_id || '');
+                            if (type === 'pension' && id) values.add(id);
+                        }
+                    };
+
+                    if (Array.isArray(groups)) {
+                        for (const group of groups) visitGroup(group);
+                    } else if (groups && typeof groups === 'object') {
+                        for (const group of Object.values(groups)) visitGroup(group);
+                    }
+
+                    return Array.from(values);
+                }''',
+            )
+            if isinstance(ids_from_settings, list) and ids_from_settings:
+                return [str(item) for item in ids_from_settings]
+        except Exception:
+            pass
+
+        # Fallback source: links in rendered DOM.
         try:
             ids = page.evaluate(
                 '''() => {
                     const values = new Set();
-                    const re = /[?&]fund=(\d+)/;
+                    const re = /[?&]fund=(\\d+)/;
                     const nodes = document.querySelectorAll("a[href*='fund_type=pension'][href*='fund=']");
                     for (const node of nodes) {
                         const href = node.getAttribute('href') || '';
@@ -121,6 +154,20 @@ class LuminorPensionsScraper(BaseScraper):
         if not isinstance(payload, dict):
             return None, None
         return payload.get("rates"), payload.get("history")
+
+    def get_selected_fund_id(self, page) -> str:
+        try:
+            selected = page.evaluate(
+                '''() => {
+                    const settings = window.drupalSettings || (window.Drupal && window.Drupal.settings) || {};
+                    const dnb = settings.dnbPensionFunds || {};
+                    const defaults = dnb.defaultValues || {};
+                    return defaults.fund ? String(defaults.fund) : '';
+                }''',
+            )
+            return str(selected) if selected else ""
+        except Exception:
+            return ""
 
     def parse_text_fallback(self, page) -> list:
         """Fallback parser for the english text-heavy page layout."""
@@ -185,7 +232,24 @@ class LuminorPensionsScraper(BaseScraper):
                 fund_url = f"{self.get_url()}?fund_type=pension&fund={fund_id}&currency=eur&period=3year"
                 page.goto(fund_url, wait_until="domcontentloaded", timeout=90000)
                 self.dismiss_cookie_modal(page)
-                page.wait_for_timeout(900)
+                try:
+                    page.wait_for_function(
+                        f'''() => {{
+                            const settings = window.drupalSettings || (window.Drupal && window.Drupal.settings) || {{}};
+                            const dnb = settings.dnbPensionFunds || {{}};
+                            const defaults = dnb.defaultValues || {{}};
+                            return String(defaults.fund || '') === '{fund_id}';
+                        }}''',
+                        timeout=7000,
+                    )
+                except Exception:
+                    pass
+                page.wait_for_timeout(700)
+
+                selected_fund_id = self.get_selected_fund_id(page)
+                if selected_fund_id and selected_fund_id != str(fund_id):
+                    # When CI ignores query params and keeps default fund, skip this pass.
+                    continue
 
                 fund_rates, fund_history = self.extract_fund_payload(page)
                 if not isinstance(fund_rates, dict):
@@ -227,6 +291,13 @@ class LuminorPensionsScraper(BaseScraper):
                         "Grynieji aktyvai": net_assets,
                     }
                 )
+
+            # Remove duplicates if the same fund appears across multiple passes.
+            if results:
+                deduped = {}
+                for row in results:
+                    deduped[row["Fund name"]] = row
+                results = list(deduped.values())
 
             if results:
                 print(f"  Parsed {len(results)} funds from live selector payload")
