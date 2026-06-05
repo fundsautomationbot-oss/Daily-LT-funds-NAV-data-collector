@@ -1,14 +1,6 @@
 name: Daily pipeline and publish docs
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - 'docs/**'
-      - 'index.html'
-      - '*.xlsx'
-      - 'logs/**'
   schedule:
     - cron: '0 12 * * *'   # 12:00 UTC = 15:00 Vilnius
     - cron: '0 13 * * *'   # 13:00 UTC = 16:00 Vilnius
