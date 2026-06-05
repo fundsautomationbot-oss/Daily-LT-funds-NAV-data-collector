@@ -6,12 +6,18 @@ export default {
       .filter(Boolean);
 
     const requestOrigin = request.headers.get("Origin") || "";
+    const url = new URL(request.url);
+    
+    // For /trigger endpoint, allow all origins (it's safe since it just dispatches CI)
+    const isTriggerEndpoint = url.pathname === "/trigger";
     const allowOriginHeader =
-      allowedOrigins.length === 0
+      isTriggerEndpoint
         ? "*"
-        : allowedOrigins.includes(requestOrigin)
-          ? requestOrigin
-          : "";
+        : allowedOrigins.length === 0
+          ? "*"
+          : allowedOrigins.includes(requestOrigin)
+            ? requestOrigin
+            : "";
 
     const corsHeaders = {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -28,13 +34,11 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    const url = new URL(request.url);
-
     if (url.pathname === "/") {
       return jsonResponse({ ok: true, service: "daily-lt-funds-trigger" }, 200, corsHeaders);
     }
 
-    if (allowedOrigins.length > 0 && requestOrigin && !allowedOrigins.includes(requestOrigin)) {
+    if (!isTriggerEndpoint && allowedOrigins.length > 0 && requestOrigin && !allowedOrigins.includes(requestOrigin)) {
       return jsonResponse({ ok: false, error: "origin_not_allowed" }, 403, corsHeaders);
     }
 
