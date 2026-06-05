@@ -21,7 +21,7 @@
         </div>
         <div class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
           Device mode is enabled: reports generated from this browser are shown only on this browser.
-          <p class="mt-2 text-xs text-slate-500">Automatic checks run at 14:00, 16:00, and 18:00 Vilnius time until new data appears.</p>
+          <p class="mt-2 text-xs text-slate-500">Automatic checks run at 15:00, 16:00, 17:00, and 18:00 Vilnius time until new data appears.</p>
           <p id="last-check-note" class="mt-1 text-xs text-slate-500">Last automatic check: not yet</p>
         </div>
         <div id="report-body" class="overflow-x-auto rounded-3xl border border-slate-200 bg-white min-h-[16rem]">
@@ -43,7 +43,7 @@ const PENDING_UPDATE_KEY = 'ltFundsPendingBaseline';
 const LAST_PUBLISHED_CHECK_KEY = 'ltFundsLastPublishedCheckAt';
 const AUTO_CHECK_STATE_KEY = 'ltFundsAutoCheckState';
 const VILNIUS_TIME_ZONE = 'Europe/Vilnius';
-const AUTO_CHECK_SLOTS = [14 * 60, 16 * 60, 18 * 60];
+const AUTO_CHECK_SLOTS = [15 * 60, 16 * 60, 17 * 60, 18 * 60];
 let autoCheckTimerId = null;
 function byNewest(a, b) { return b.date.localeCompare(a.date); }
 function getDeviceId() {
@@ -141,9 +141,9 @@ function writeAutoCheckState(state) {
   }));
 }
 function currentEligibleSlot(totalMinutes) {
-  if (totalMinutes >= AUTO_CHECK_SLOTS[2]) return AUTO_CHECK_SLOTS[2];
-  if (totalMinutes >= AUTO_CHECK_SLOTS[1]) return AUTO_CHECK_SLOTS[1];
-  if (totalMinutes >= AUTO_CHECK_SLOTS[0]) return AUTO_CHECK_SLOTS[0];
+  for (let i = AUTO_CHECK_SLOTS.length - 1; i >= 0; i -= 1) {
+    if (totalMinutes >= AUTO_CHECK_SLOTS[i]) return AUTO_CHECK_SLOTS[i];
+  }
   return null;
 }
 function computeNextAutoCheckDelayMs() {
@@ -323,7 +323,6 @@ async function waitForBuildCompletion(dispatchedAt, maxWaitMs) {
   return null;
 }
 async function initialPublishedSync() {
-  markPublishedCheckNow();
   try {
     const published = (await fetchPublishedReports()).sort(byNewest);
     if (!published.length) return;
