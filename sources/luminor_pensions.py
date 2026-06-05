@@ -6,6 +6,7 @@ Fetches II pillar fund data from server-rendered dnbPensionFunds payload.
 import json
 import re
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -59,6 +60,27 @@ class LuminorPensionsScraper(BaseScraper):
         with urllib.request.urlopen(request, timeout=45) as response:
             return response.read().decode("utf-8", "ignore")
 
+    def fetch_html_via_browser_session(self, fund_id: str) -> str:
+        """Use Playwright context request API to bypass CI datacenter 403 blocks."""
+        if not self.context:
+            raise RuntimeError("Browser context is not initialized")
+
+        url = LUMINOR_URL_TEMPLATE.format(fund_id=fund_id)
+        response = self.context.request.get(
+            url,
+            timeout=45000,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                )
+            },
+        )
+        if response.status >= 400:
+            raise RuntimeError(f"HTTP {response.status}")
+        return response.text()
+
     def extract_payload(self, html: str) -> dict:
         match = re.search(
             r'dnbPensionFunds"\s*:\s*(\{.*?\})\s*,\s*"urlIsAjaxTrusted"',
@@ -110,6 +132,7 @@ class LuminorPensionsScraper(BaseScraper):
     def run(self):
         try:
             rows = []
+            blocked_fund_ids = []
             for fund_id in LUMINOR_II_FUND_IDS:
                 try:
                     html = self.fetch_html(fund_id)
@@ -119,8 +142,33 @@ class LuminorPensionsScraper(BaseScraper):
                     row = self.build_row(payload)
                     if row:
                         rows.append(row)
+                except urllib.error.HTTPError as exc:
+                    if exc.code == 403:
+                        blocked_fund_ids.append(fund_id)
+                        continue
+                    print(f"Failed fund {fund_id}: {exc}")
                 except Exception as exc:
                     print(f"Failed fund {fund_id}: {exc}")
+
+            if blocked_fund_ids:
+                print(
+                    f"Direct HTTP blocked for {len(blocked_fund_ids)} fund(s); retrying via browser session"
+                )
+                try:
+                    self.setup_browser()
+                    for fund_id in blocked_fund_ids:
+                        try:
+                            html = self.fetch_html_via_browser_session(fund_id)
+                            payload = self.extract_payload(html)
+                            if not payload:
+                                continue
+                            row = self.build_row(payload)
+                            if row:
+                                rows.append(row)
+                        except Exception as exc:
+                            print(f"Failed fund {fund_id} in browser fallback: {exc}")
+                finally:
+                    self.cleanup_browser()
 
             if not rows:
                 print("No data scraped from luminor_pensions. Page structure may have changed.")
