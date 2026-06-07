@@ -4,14 +4,11 @@ Luminor pension funds scraper.
 Fetches II pillar fund data from server-rendered dnbPensionFunds payload.
 """
 import json
-import glob
 import re
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -174,9 +171,6 @@ class LuminorPensionsScraper(BaseScraper):
                     self.cleanup_browser()
 
             if not rows:
-                fallback = self.build_cached_fallback_file()
-                if fallback:
-                    return fallback
                 print("No data scraped from luminor_pensions. Page structure may have changed.")
                 return None
 
@@ -201,48 +195,6 @@ class LuminorPensionsScraper(BaseScraper):
 
         except Exception as exc:
             print(f"Error scraping {self.source_name}: {exc}")
-            return None
-
-    def build_cached_fallback_file(self):
-        """Build a fallback output from the latest cached Luminor file when live fetch is blocked."""
-        try:
-            candidates = sorted(glob.glob("luminor_pensions_data_*.xlsx"), reverse=True)
-            if not candidates:
-                return None
-
-            latest = candidates[0]
-            df = pd.read_excel(latest)
-            if df.empty:
-                return None
-
-            # Normalize legacy column names from older Luminor script variants.
-            rename_map = {
-                "Date": "Data",
-                "Unit value": "Vieneto vertė",
-                "Net assets": "Grynieji aktyvai",
-            }
-            df = df.rename(columns=rename_map)
-
-            required_cols = ["Fund name", "Data", "Vieneto vertė", "Grynieji aktyvai"]
-            for col in required_cols:
-                if col not in df.columns:
-                    return None
-            df = df[required_cols].copy()
-
-            # Keep stale metrics but stamp expected reporting date so merge can stay synchronized.
-            yesterday_vilnius = (datetime.now(ZoneInfo("Europe/Vilnius")) - timedelta(days=1)).strftime("%Y-%m-%d")
-            df["Data"] = yesterday_vilnius
-
-            filename = f"{self.source_name}_data_{yesterday_vilnius}.xlsx"
-            filepath = self.save_to_excel(df, filename)
-            if filepath:
-                print(
-                    f"⚠️ Luminor live fetch blocked (403). Using cached data from {latest} with date {yesterday_vilnius}."
-                )
-                print(f"✅ Excel file created: {filename}")
-            return filepath
-        except Exception as exc:
-            print(f"Cached fallback failed: {exc}")
             return None
 
 
