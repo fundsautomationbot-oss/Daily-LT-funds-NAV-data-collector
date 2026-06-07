@@ -60,26 +60,19 @@ class LuminorPensionsScraper(BaseScraper):
         with urllib.request.urlopen(request, timeout=45) as response:
             return response.read().decode("utf-8", "ignore")
 
-    def fetch_html_via_browser_session(self, fund_id: str) -> str:
-        """Use Playwright context request API to bypass CI datacenter 403 blocks."""
-        if not self.context:
-            raise RuntimeError("Browser context is not initialized")
+    def fetch_html_via_browser_navigation(self, fund_id: str) -> str:
+        """Use real browser page navigation (not request API) for anti-bot protected pages."""
+        if not self.page:
+            raise RuntimeError("Browser page is not initialized")
 
         url = LUMINOR_URL_TEMPLATE.format(fund_id=fund_id)
-        response = self.context.request.get(
-            url,
-            timeout=45000,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                )
-            },
-        )
-        if response.status >= 400:
+        response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
+        if response and response.status >= 400:
             raise RuntimeError(f"HTTP {response.status}")
-        return response.text()
+
+        # Give client-side scripts a moment to initialize page state.
+        self.page.wait_for_timeout(1200)
+        return self.page.content()
 
     def extract_payload(self, html: str) -> dict:
         match = re.search(
@@ -158,7 +151,7 @@ class LuminorPensionsScraper(BaseScraper):
                     self.setup_browser()
                     for fund_id in blocked_fund_ids:
                         try:
-                            html = self.fetch_html_via_browser_session(fund_id)
+                            html = self.fetch_html_via_browser_navigation(fund_id)
                             payload = self.extract_payload(html)
                             if not payload:
                                 continue
