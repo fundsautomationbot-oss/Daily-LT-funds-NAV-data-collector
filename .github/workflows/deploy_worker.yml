@@ -23,6 +23,6 @@ jobs:
           wranglerVersion: '4.98.0'
           workingDirectory: infra/trigger-worker
           secrets: |
-            GITHUB_WORKFLOW_TOKEN
+            GH_WORKFLOW_TOKEN
         env:
-          GITHUB_WORKFLOW_TOKEN: ${{ secrets.GITHUB_WORKFLOW_TOKEN }}
+          GH_WORKFLOW_TOKEN: ${{ secrets.GH_WORKFLOW_TOKEN }}

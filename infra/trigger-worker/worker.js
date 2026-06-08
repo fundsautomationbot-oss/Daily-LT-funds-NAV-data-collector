@@ -44,7 +44,7 @@ export default {
         return jsonResponse({ ok: false, error: "origin_not_allowed" }, 403, corsHeaders);
       }
 
-      const githubToken = env.GITHUB_WORKFLOW_TOKEN;
+      const githubToken = env.GH_WORKFLOW_TOKEN;
       const repository = env.GITHUB_REPOSITORY;
       const workflowFile = env.GITHUB_WORKFLOW_FILE || "daily_publish.yml";
       const workflowRef = env.GITHUB_WORKFLOW_REF || "main";
@@ -175,7 +175,7 @@ export default {
 };
 
 async function dispatchWorkflow(env) {
-  const githubToken = env.GITHUB_WORKFLOW_TOKEN;
+  const githubToken = env.GH_WORKFLOW_TOKEN;
   const repository = env.GITHUB_REPOSITORY;
   const workflowFile = env.GITHUB_WORKFLOW_FILE || "daily_publish.yml";
   const workflowRef = env.GITHUB_WORKFLOW_REF || "main";
