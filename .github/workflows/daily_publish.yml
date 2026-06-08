@@ -2,6 +2,7 @@ name: Daily pipeline and publish docs
 
 on:
   schedule:
+    - cron: '13 10 * * *'  # TEMP test trigger (2026-06-08 10:13 UTC)
     - cron: '16 13 * * *'  # TEMP test trigger (2026-06-05 13:16 UTC)
     - cron: '0 12 * * *'   # 12:00 UTC = 15:00 Vilnius
     - cron: '0 13 * * *'   # 13:00 UTC = 16:00 Vilnius
