@@ -1,4 +1,8 @@
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(dispatchWorkflow(env));
+  },
+
   async fetch(request, env) {
     try {
       const allowedOrigins = (env.ALLOWED_ORIGINS || "")
@@ -169,6 +173,30 @@ export default {
     }
   },
 };
+
+async function dispatchWorkflow(env) {
+  const githubToken = env.GITHUB_WORKFLOW_TOKEN;
+  const repository = env.GITHUB_REPOSITORY;
+  const workflowFile = env.GITHUB_WORKFLOW_FILE || "daily_publish.yml";
+  const workflowRef = env.GITHUB_WORKFLOW_REF || "main";
+
+  if (!githubToken || !repository) return;
+
+  await fetch(
+    `https://api.github.com/repos/${repository}/actions/workflows/${workflowFile}/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": `Bearer ${githubToken}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+        "User-Agent": "daily-lt-funds-trigger-worker",
+      },
+      body: JSON.stringify({ ref: workflowRef }),
+    }
+  );
+}
 
 function jsonResponse(payload, status, headers) {
   return new Response(JSON.stringify(payload), {

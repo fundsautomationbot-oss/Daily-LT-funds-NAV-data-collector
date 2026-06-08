@@ -2,6 +2,14 @@ name = "daily-lt-funds-trigger"
 main = "worker.js"
 compatibility_date = "2026-06-04"
 
+[triggers]
+crons = [
+  "0 12 * * *",   # 12:00 UTC = 15:00 Vilnius
+  "0 13 * * *",   # 13:00 UTC = 16:00 Vilnius
+  "0 14 * * *",   # 14:00 UTC = 17:00 Vilnius
+  "0 15 * * *",   # 15:00 UTC = 18:00 Vilnius
+]
+
 [vars]
 # Comma-separated list of allowed origins, e.g. "https://fundsautomationbot-oss.github.io"
 ALLOWED_ORIGINS = "https://fundsautomationbot-oss.github.io"
