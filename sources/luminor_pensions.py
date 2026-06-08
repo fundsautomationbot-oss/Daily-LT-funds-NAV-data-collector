@@ -52,6 +52,8 @@ class LuminorPensionsScraper(BaseScraper):
             if luminor_pass:
                 os.environ["PLAYWRIGHT_PROXY_PASSWORD"] = luminor_pass
         return super().setup_browser()
+
+    def get_url(self) -> str:
         return LUMINOR_BASE_URLS[0]
 
     def scrape_data(self, page) -> list:
