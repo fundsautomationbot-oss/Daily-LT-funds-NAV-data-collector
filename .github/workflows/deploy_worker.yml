@@ -22,5 +22,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: '4.98.0'
           workingDirectory: infra/trigger-worker
+          secrets: |
+            GITHUB_WORKFLOW_TOKEN
         env:
           GITHUB_WORKFLOW_TOKEN: ${{ secrets.GITHUB_WORKFLOW_TOKEN }}
