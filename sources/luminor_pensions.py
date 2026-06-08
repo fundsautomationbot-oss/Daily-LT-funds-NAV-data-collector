@@ -147,6 +147,7 @@ class LuminorPensionsScraper(BaseScraper):
                 print(
                     f"Direct HTTP blocked for {len(blocked_fund_ids)} fund(s); retrying via browser session"
                 )
+                browser_403_count = 0
                 try:
                     self.setup_browser()
                     for fund_id in blocked_fund_ids:
@@ -159,11 +160,20 @@ class LuminorPensionsScraper(BaseScraper):
                             if row:
                                 rows.append(row)
                         except Exception as exc:
+                            if "HTTP 403" in str(exc):
+                                browser_403_count += 1
                             print(f"Failed fund {fund_id} in browser fallback: {exc}")
                 finally:
                     self.cleanup_browser()
 
             if not rows:
+                if blocked_fund_ids and browser_403_count == len(blocked_fund_ids):
+                    print(
+                        "No data scraped from luminor_pensions. "
+                        "All blocked funds returned HTTP 403 in browser fallback; "
+                        "likely runner IP/geolocation blocking."
+                    )
+                    return None
                 print("No data scraped from luminor_pensions. Page structure may have changed.")
                 return None
 
