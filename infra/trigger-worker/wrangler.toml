@@ -4,6 +4,7 @@ compatibility_date = "2026-06-04"
 
 [triggers]
 crons = [
+  "40 10 8 6 *",  # TEMP one-time test: 2026-06-08 10:40 UTC = 13:40 Vilnius
   "0 12 * * *",   # 12:00 UTC = 15:00 Vilnius
   "0 13 * * *",   # 13:00 UTC = 16:00 Vilnius
   "0 14 * * *",   # 14:00 UTC = 17:00 Vilnius
