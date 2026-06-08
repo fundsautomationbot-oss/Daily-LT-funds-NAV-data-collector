@@ -583,14 +583,10 @@ def format_report_index(reports, trigger_api_url):
 
 
 def write_index_page(docs_dir: Path):
-    complete_dates = discover_complete_snapshot_dates()
-    if complete_dates:
-        reports = collect_report_files(docs_dir, allowed_dates=complete_dates)
-    else:
-        # If there is no fully synchronized date in current raw files,
-        # keep showing previously published dates only up to the provider floor date.
-        floor_date = discover_provider_floor_date()
-        reports = collect_report_files(docs_dir, max_date=floor_date)
+    # Keep all already published reports visible in the index.
+    # Publication itself is controlled by synchronized snapshots in main(),
+    # so filtering by current raw files here can accidentally hide valid history.
+    reports = collect_report_files(docs_dir)
 
     html_path = docs_dir / "index.html"
     trigger_api_url = os.getenv("REPORT_TRIGGER_API_URL", "").strip()
