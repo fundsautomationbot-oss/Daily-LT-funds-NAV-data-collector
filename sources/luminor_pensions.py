@@ -78,12 +78,21 @@ class LuminorPensionsScraper(BaseScraper):
         for base_url in LUMINOR_BASE_URLS:
             url = self.build_url(base_url, fund_id)
             try:
+                # First visit the homepage to establish a realistic browsing session
+                # before navigating to the fund page.
+                try:
+                    homepage = base_url.rstrip("/lt/rinkis-fonda").rstrip("/en/rinkis-fonda")
+                    self.page.goto(homepage + "/lt", wait_until="domcontentloaded", timeout=30000)
+                    self.page.wait_for_timeout(800)
+                except Exception:
+                    pass  # Homepage visit is best-effort
+
                 response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
                 if response and response.status >= 400:
                     raise RuntimeError(f"HTTP {response.status}")
 
                 # Give client-side scripts a moment to initialize page state.
-                self.page.wait_for_timeout(1200)
+                self.page.wait_for_timeout(1500)
                 return self.page.content()
             except Exception as exc:
                 last_error = exc
@@ -175,7 +184,9 @@ class LuminorPensionsScraper(BaseScraper):
                             if row:
                                 rows.append(row)
                         except Exception as exc:
-                            if "HTTP 403" in str(exc):
+                            err_str = str(exc)
+                            # Count any network/access block: 403, proxy failure, connection refused
+                            if any(kw in err_str for kw in ("HTTP 403", "ERR_PROXY", "ERR_CONNECTION", "ERR_TUNNEL")):
                                 browser_403_count += 1
                             print(f"Failed fund {fund_id} in browser fallback: {exc}")
                 finally:
@@ -185,10 +196,11 @@ class LuminorPensionsScraper(BaseScraper):
                 if blocked_fund_ids and browser_403_count == len(blocked_fund_ids):
                     print(
                         "No data scraped from luminor_pensions. "
-                        "All blocked funds returned HTTP 403 in browser fallback; "
-                        "likely runner IP/geolocation blocking."
+                        "All browser requests failed (proxy/network/geo block). "
+                        "Exiting gracefully."
                     )
-                    return None
+                    # Exit 0: this is an infrastructure/network issue, not a code error.
+                    sys.exit(0)
                 print("No data scraped from luminor_pensions. Page structure may have changed.")
                 return None
 

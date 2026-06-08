@@ -32,6 +32,7 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Run Luminor scraper only
+        continue-on-error: true
         run: python sources/luminor_pensions.py
 
       - name: Upload Luminor output

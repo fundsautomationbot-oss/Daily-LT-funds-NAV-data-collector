@@ -117,6 +117,12 @@ class BaseScraper(ABC):
             )
         except Exception:
             pass
+        # Apply playwright-stealth if available to reduce bot fingerprint
+        try:
+            from playwright_stealth import stealth_sync
+            stealth_sync(self.page)
+        except Exception:
+            pass
 
         # Longer default timeout for network-heavy pages in CI
         self.page.set_default_timeout(int(os.getenv("PLAYWRIGHT_TIMEOUT_MS", "60000")))
