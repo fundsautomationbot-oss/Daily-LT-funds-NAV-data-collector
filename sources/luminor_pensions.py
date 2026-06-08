@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -63,6 +64,18 @@ class LuminorPensionsScraper(BaseScraper):
     def build_url(self, base_url: str, fund_id: str) -> str:
         return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
 
+    def is_retryable_browser_error(self, error_message: str) -> bool:
+        retryable_markers = (
+            "chrome-error://chromewebdata",
+            "ERR_PROXY",
+            "ERR_CONNECTION",
+            "ERR_TUNNEL",
+            "ERR_TIMED_OUT",
+            "ERR_NETWORK_CHANGED",
+            "Navigation timeout",
+        )
+        return any(marker in error_message for marker in retryable_markers)
+
     def fetch_html(self, fund_id: str) -> str:
         last_error = None
         for base_url in LUMINOR_BASE_URLS:
@@ -96,7 +109,7 @@ class LuminorPensionsScraper(BaseScraper):
                 # First visit the homepage to establish a realistic browsing session
                 # before navigating to the fund page.
                 try:
-                    homepage = base_url.rstrip("/lt/rinkis-fonda").rstrip("/en/rinkis-fonda")
+                    homepage = base_url.split("/lt/rinkis-fonda", 1)[0]
                     self.page.goto(homepage + "/lt", wait_until="domcontentloaded", timeout=30000)
                     self.page.wait_for_timeout(800)
                 except Exception:
@@ -187,23 +200,47 @@ class LuminorPensionsScraper(BaseScraper):
                     f"Direct HTTP blocked for {len(blocked_fund_ids)} fund(s); retrying via browser session"
                 )
                 browser_403_count = 0
+                max_attempts = max(int(os.getenv("LUMINOR_BROWSER_RETRIES", "3")), 1)
                 try:
                     self.setup_browser()
                     for fund_id in blocked_fund_ids:
-                        try:
-                            html = self.fetch_html_via_browser_navigation(fund_id)
-                            payload = self.extract_payload(html)
-                            if not payload:
-                                continue
-                            row = self.build_row(payload)
-                            if row:
-                                rows.append(row)
-                        except Exception as exc:
-                            err_str = str(exc)
-                            # Count any network/access block: 403, proxy failure, connection refused
-                            if any(kw in err_str for kw in ("HTTP 403", "ERR_PROXY", "ERR_CONNECTION", "ERR_TUNNEL")):
-                                browser_403_count += 1
-                            print(f"Failed fund {fund_id} in browser fallback: {exc}")
+                        fund_loaded = False
+                        last_exc = None
+                        for attempt in range(1, max_attempts + 1):
+                            try:
+                                if attempt > 1:
+                                    # Recreate browser session to force a fresh proxy exit/node.
+                                    self.cleanup_browser()
+                                    self.setup_browser()
+                                    time.sleep(min(2 * (attempt - 1), 5))
+
+                                html = self.fetch_html_via_browser_navigation(fund_id)
+                                payload = self.extract_payload(html)
+                                if not payload:
+                                    raise RuntimeError("Missing dnbPensionFunds payload")
+
+                                row = self.build_row(payload)
+                                if row:
+                                    rows.append(row)
+                                    fund_loaded = True
+                                    break
+                                raise RuntimeError("Payload parsed but row had no unit value / net assets")
+                            except Exception as exc:
+                                last_exc = exc
+                                err_str = str(exc)
+                                if "HTTP 403" in err_str:
+                                    browser_403_count += 1
+
+                                if attempt < max_attempts and self.is_retryable_browser_error(err_str):
+                                    print(
+                                        f"Retrying fund {fund_id} after browser error "
+                                        f"(attempt {attempt}/{max_attempts}): {exc}"
+                                    )
+                                    continue
+                                break
+
+                        if not fund_loaded and last_exc:
+                            print(f"Failed fund {fund_id} in browser fallback: {last_exc}")
                 finally:
                     self.cleanup_browser()
 
