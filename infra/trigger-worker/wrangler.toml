@@ -3,16 +3,6 @@ main = "worker.js"
 compatibility_date = "2026-06-04"
 workers_dev = true
 
-[triggers]
-crons = [
-  "55 10 8 6 *",  # TEMP one-time test: 2026-06-08 14:00 UTC = 13:55 EET
-  "12 11 * * *",  # TEMP test: 11:12 UTC = 14:12 Vilnius
-  "0 12 * * *",   # 12:00 UTC = 15:00 Vilnius
-  "0 13 * * *",   # 13:00 UTC = 16:00 Vilnius
-  "0 14 * * *",   # 14:00 UTC = 17:00 Vilnius
-  "0 15 * * *",   # 15:00 UTC = 18:00 Vilnius
-]
-
 [vars]
 # Comma-separated list of allowed origins, e.g. "https://fundsautomationbot-oss.github.io"
 ALLOWED_ORIGINS = "https://fundsautomationbot-oss.github.io"
