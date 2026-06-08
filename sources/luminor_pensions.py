@@ -26,10 +26,10 @@ EXCLUDED_FUNDS = {
 }
 
 LUMINOR_II_FUND_IDS = ["15", "16", "17", "18", "19", "20", "23", "21"]
-LUMINOR_URL_TEMPLATE = (
-    "https://www.luminor.lt/lt/rinkis-fonda"
-    "?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
-)
+LUMINOR_BASE_URLS = [
+    "https://luminor.lt/lt/rinkis-fonda",
+    "https://www.luminor.lt/lt/rinkis-fonda",
+]
 
 
 class LuminorPensionsScraper(BaseScraper):
@@ -39,40 +39,55 @@ class LuminorPensionsScraper(BaseScraper):
         super().__init__("luminor_pensions")
 
     def get_url(self) -> str:
-        return "https://www.luminor.lt/lt/rinkis-fonda"
+        return LUMINOR_BASE_URLS[0]
 
     def scrape_data(self, page) -> list:
         # Not used because run() is overridden to avoid brittle browser flows.
         return []
 
+    def build_url(self, base_url: str, fund_id: str) -> str:
+        return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
+
     def fetch_html(self, fund_id: str) -> str:
-        url = LUMINOR_URL_TEMPLATE.format(fund_id=fund_id)
-        request = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                )
-            },
-        )
-        with urllib.request.urlopen(request, timeout=45) as response:
-            return response.read().decode("utf-8", "ignore")
+        last_error = None
+        for base_url in LUMINOR_BASE_URLS:
+            url = self.build_url(base_url, fund_id)
+            request = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"
+                    )
+                },
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=45) as response:
+                    return response.read().decode("utf-8", "ignore")
+            except Exception as exc:
+                last_error = exc
+        raise last_error
 
     def fetch_html_via_browser_navigation(self, fund_id: str) -> str:
         """Use real browser page navigation (not request API) for anti-bot protected pages."""
         if not self.page:
             raise RuntimeError("Browser page is not initialized")
 
-        url = LUMINOR_URL_TEMPLATE.format(fund_id=fund_id)
-        response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
-        if response and response.status >= 400:
-            raise RuntimeError(f"HTTP {response.status}")
+        last_error = None
+        for base_url in LUMINOR_BASE_URLS:
+            url = self.build_url(base_url, fund_id)
+            try:
+                response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
+                if response and response.status >= 400:
+                    raise RuntimeError(f"HTTP {response.status}")
 
-        # Give client-side scripts a moment to initialize page state.
-        self.page.wait_for_timeout(1200)
-        return self.page.content()
+                # Give client-side scripts a moment to initialize page state.
+                self.page.wait_for_timeout(1200)
+                return self.page.content()
+            except Exception as exc:
+                last_error = exc
+        raise last_error
 
     def extract_payload(self, html: str) -> dict:
         match = re.search(
