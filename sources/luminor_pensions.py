@@ -4,6 +4,7 @@ Luminor pension funds scraper.
 Fetches II pillar fund data from server-rendered dnbPensionFunds payload.
 """
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -38,7 +39,19 @@ class LuminorPensionsScraper(BaseScraper):
     def __init__(self):
         super().__init__("luminor_pensions")
 
-    def get_url(self) -> str:
+    def setup_browser(self):
+        """Initialize browser with Luminor-specific proxy settings."""
+        # Override proxy env vars with Luminor-specific ones before calling base setup
+        luminor_proxy = os.environ.get("LUMINOR_PROXY_SERVER", "")
+        if luminor_proxy:
+            os.environ["PLAYWRIGHT_PROXY_SERVER"] = luminor_proxy
+            luminor_user = os.environ.get("LUMINOR_PROXY_USERNAME", "")
+            luminor_pass = os.environ.get("LUMINOR_PROXY_PASSWORD", "")
+            if luminor_user:
+                os.environ["PLAYWRIGHT_PROXY_USERNAME"] = luminor_user
+            if luminor_pass:
+                os.environ["PLAYWRIGHT_PROXY_PASSWORD"] = luminor_pass
+        return super().setup_browser()
         return LUMINOR_BASE_URLS[0]
 
     def scrape_data(self, page) -> list:

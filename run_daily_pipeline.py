@@ -4,6 +4,7 @@ Daily pipeline orchestrator - auto-discovers and runs all scrapers.
 """
 from datetime import datetime
 from pathlib import Path
+import json
 import subprocess
 import sys
 import os
@@ -15,6 +16,7 @@ SOURCES_DIR = BASE_DIR / "sources"
 STEP_TIMEOUT_SECONDS = int(os.getenv("PIPELINE_STEP_TIMEOUT_SECONDS", "420"))
 SCRAPER_RETRIES = int(os.getenv("PIPELINE_SCRAPER_RETRIES", "1"))
 STRICT_FAILURE_MODE = os.getenv("PIPELINE_STRICT_FAILURE", "0") == "1"
+SUMMARY_FILE = BASE_DIR / "pipeline_summary.json"
 
 
 def get_python_executable():
@@ -87,28 +89,44 @@ def main():
     # Step 1: Discover and run all scrapers
     scrapers = discover_scrapers()
     failed_scrapers = []
-    
+    scraper_results = {}
+
     if not scrapers:
         print("Warning: No scrapers found in sources/ directory")
     else:
         print(f"Found {len(scrapers)} scraper(s): {', '.join(s.name for s in scrapers)}")
         for scraper_path in scrapers:
             success = run_step(scraper_path, retries=SCRAPER_RETRIES)
+            scraper_results[scraper_path.stem] = "ok" if success else "failed"
             if not success:
                 failed_scrapers.append(scraper_path.name)
 
     # Step 2: Merge data from all sources
     print("\n=== Running merge_data.py ===")
     merge_script = BASE_DIR / "merge_data.py"
+    merge_ok = False
     if merge_script.exists():
         merge_success = run_step(merge_script, retries=0)
+        merge_ok = merge_success
         if not merge_success:
             print("Merge step failed. Skipping email sending.")
             if failed_scrapers:
                 print(f"Failed scrapers: {', '.join(failed_scrapers)}")
+            SUMMARY_FILE.write_text(json.dumps({
+                "scrapers": scraper_results,
+                "merge": "failed",
+                "failed": failed_scrapers,
+            }))
             sys.exit(1)
     else:
         print(f"Warning: {merge_script} not found")
+
+    # Write summary for status email
+    SUMMARY_FILE.write_text(json.dumps({
+        "scrapers": scraper_results,
+        "merge": "ok" if merge_ok else "skipped",
+        "failed": failed_scrapers,
+    }))
 
     # Step 3: Send email (optional via SEND_EMAIL env var)
     send_email_enabled = os.getenv("SEND_EMAIL", "true").lower() in ("1", "true", "yes")

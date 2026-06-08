@@ -17,10 +17,6 @@ permissions:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_PROXY_SERVER: ${{ secrets.PLAYWRIGHT_PROXY_SERVER }}
-      PLAYWRIGHT_PROXY_USERNAME: ${{ secrets.PLAYWRIGHT_PROXY_USERNAME }}
-      PLAYWRIGHT_PROXY_PASSWORD: ${{ secrets.PLAYWRIGHT_PROXY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +52,10 @@ jobs:
         env:
           SEND_EMAIL: 'false'
           REPORT_TRIGGER_API_URL: ${{ vars.REPORT_TRIGGER_API_URL }}
+          # Proxy only for Luminor — other scrapers run without it
+          LUMINOR_PROXY_SERVER: ${{ secrets.PLAYWRIGHT_PROXY_SERVER }}
+          LUMINOR_PROXY_USERNAME: ${{ secrets.PLAYWRIGHT_PROXY_USERNAME }}
+          LUMINOR_PROXY_PASSWORD: ${{ secrets.PLAYWRIGHT_PROXY_PASSWORD }}
         run: |
           ./.venv/bin/python run_daily_pipeline.py || python run_daily_pipeline.py
 
@@ -77,9 +77,10 @@ jobs:
           SKIPPED: ${{ steps.check_existing.outputs.skip }}
         run: |
           python - <<'EOF'
-          import os, smtplib
+          import os, json, smtplib
           from email.mime.text import MIMEText
           from email.utils import formatdate
+          from pathlib import Path
 
           gmail_user = os.environ.get("GMAIL_USER", "")
           gmail_pass = os.environ.get("GMAIL_PASSWORD", "")
@@ -92,15 +93,35 @@ jobs:
               print("Status email skipped: Gmail credentials not configured")
               exit(0)
 
+          # Read per-scraper results if available
+          summary_path = Path("pipeline_summary.json")
+          scraper_lines = ""
+          failed_scrapers = []
+          if summary_path.exists():
+              try:
+                  summary = json.loads(summary_path.read_text())
+                  scrapers = summary.get("scrapers", {})
+                  failed_scrapers = summary.get("failed", [])
+                  lines = []
+                  for name, result in scrapers.items():
+                      icon = "✅" if result == "ok" else "❌"
+                      lines.append(f"  {icon} {name}: {result}")
+                  scraper_lines = "\nScraper results:\n" + "\n".join(lines)
+              except Exception:
+                  pass
+
           if skipped == "true":
-              subject = "✅ LT Pension pipeline – skipped (report already exists)"
-              body = f"The pipeline ran but was skipped because yesterday's report already exists in docs/.\n\nRun: {run_url}"
+              subject = "⏭️ LT Pension pipeline – skipped (report already exists)"
+              body = f"The pipeline was skipped — yesterday's report already exists in docs/.\n\nRun: {run_url}"
+          elif failed_scrapers:
+              subject = f"⚠️ LT Pension pipeline – completed with {len(failed_scrapers)} failure(s)"
+              body = f"The pipeline completed but some scrapers failed.\n{scraper_lines}\n\nRun: {run_url}"
           elif status == "success":
-              subject = "✅ LT Pension pipeline – completed successfully"
-              body = f"The pipeline ran and published new data.\n\nRun: {run_url}"
+              subject = "✅ LT Pension pipeline – all scrapers succeeded"
+              body = f"All scrapers ran successfully and new data was published.\n{scraper_lines}\n\nRun: {run_url}"
           else:
               subject = "❌ LT Pension pipeline – failed"
-              body = f"The pipeline run finished with status: {status}\n\nCheck the logs for details:\n{run_url}"
+              body = f"The pipeline run finished with status: {status}\n{scraper_lines}\n\nCheck the logs:\n{run_url}"
 
           recipients = [r.strip() for r in recipient.split(",") if r.strip()]
           msg = MIMEText(body, "plain", "utf-8")
