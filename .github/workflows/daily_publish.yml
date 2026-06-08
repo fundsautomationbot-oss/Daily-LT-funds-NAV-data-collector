@@ -66,3 +66,52 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs || true
           git diff --staged --quiet || (git commit -m "chore: update docs (publish)" && git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main)
+
+      - name: Send status email
+        if: always()
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          JOB_STATUS: ${{ job.status }}
+          SKIPPED: ${{ steps.check_existing.outputs.skip }}
+        run: |
+          python - <<'EOF'
+          import os, smtplib
+          from email.mime.text import MIMEText
+          from email.utils import formatdate
+
+          gmail_user = os.environ.get("GMAIL_USER", "")
+          gmail_pass = os.environ.get("GMAIL_PASSWORD", "")
+          recipient  = os.environ.get("RECIPIENT_EMAIL", "")
+          status     = os.environ.get("JOB_STATUS", "unknown")
+          skipped    = os.environ.get("SKIPPED", "false")
+          run_url    = f"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if not gmail_user or not gmail_pass or not recipient:
+              print("Status email skipped: Gmail credentials not configured")
+              exit(0)
+
+          if skipped == "true":
+              subject = "✅ LT Pension pipeline – skipped (report already exists)"
+              body = f"The pipeline ran but was skipped because yesterday's report already exists in docs/.\n\nRun: {run_url}"
+          elif status == "success":
+              subject = "✅ LT Pension pipeline – completed successfully"
+              body = f"The pipeline ran and published new data.\n\nRun: {run_url}"
+          else:
+              subject = "❌ LT Pension pipeline – failed"
+              body = f"The pipeline run finished with status: {status}\n\nCheck the logs for details:\n{run_url}"
+
+          recipients = [r.strip() for r in recipient.split(",") if r.strip()]
+          msg = MIMEText(body, "plain", "utf-8")
+          msg["From"] = gmail_user
+          msg["To"] = ", ".join(recipients)
+          msg["Date"] = formatdate(localtime=True)
+          msg["Subject"] = subject
+
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+              server.login(gmail_user, gmail_pass)
+              server.send_message(msg, to_addrs=recipients)
+
+          print(f"Status email sent: {subject}")
+          EOF
