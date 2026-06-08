@@ -13,9 +13,10 @@ jobs:
   luminor-only:
     runs-on: ubuntu-latest
     env:
-      PLAYWRIGHT_PROXY_SERVER: ${{ secrets.PLAYWRIGHT_PROXY_SERVER }}
-      PLAYWRIGHT_PROXY_USERNAME: ${{ secrets.PLAYWRIGHT_PROXY_USERNAME }}
-      PLAYWRIGHT_PROXY_PASSWORD: ${{ secrets.PLAYWRIGHT_PROXY_PASSWORD }}
+      LUMINOR_PROXY_SERVER: ${{ secrets.PLAYWRIGHT_PROXY_SERVER }}
+      LUMINOR_PROXY_USERNAME: ${{ secrets.PLAYWRIGHT_PROXY_USERNAME }}
+      LUMINOR_PROXY_PASSWORD: ${{ secrets.PLAYWRIGHT_PROXY_PASSWORD }}
+      LUMINOR_BROWSER_RETRIES: '6'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
