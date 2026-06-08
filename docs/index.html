@@ -93,8 +93,26 @@ function formatLocalTimestamp(iso) {
 function updateLastCheckLabel() {
   const el = document.getElementById('last-check-note');
   if (!el) return;
-  const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);
-  el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);
+  // Try to fetch server-side last run timestamp first
+  if (window.location.protocol !== 'file:') {
+    fetch('last_run.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        if (data && data.lastRunAt) {
+          el.textContent = 'Last pipeline run: ' + formatLocalTimestamp(data.lastRunAt);
+        } else {
+          const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);
+          el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);
+        }
+      })
+      .catch(function(){
+        const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);
+        el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);
+      });
+  } else {
+    const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);
+    el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);
+  }
 }
 function getVilniusNowParts() {
   const parts = new Intl.DateTimeFormat('en-CA', {
