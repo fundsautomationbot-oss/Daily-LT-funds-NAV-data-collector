@@ -1,13 +1,6 @@
 name: Daily pipeline and publish docs
 
 on:
-  schedule:
-    - cron: '28 10 * * *'  # TEMP test trigger (2026-06-08 10:28 UTC)
-    - cron: '16 13 * * *'  # TEMP test trigger (2026-06-05 13:16 UTC)
-    - cron: '0 12 * * *'   # 12:00 UTC = 15:00 Vilnius
-    - cron: '0 13 * * *'   # 13:00 UTC = 16:00 Vilnius
-    - cron: '0 14 * * *'   # 14:00 UTC = 17:00 Vilnius
-    - cron: '0 15 * * *'   # 15:00 UTC = 18:00 Vilnius
   workflow_dispatch: {}
 
 env:
