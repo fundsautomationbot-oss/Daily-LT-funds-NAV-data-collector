@@ -8,6 +8,7 @@ consolidates column names, cleans numeric values, and applies Excel formatting.
 import re
 import sys
 import os
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -273,8 +274,26 @@ def format_report_index(reports, trigger_api_url):
         "function updateLastCheckLabel() {\n"
         "  const el = document.getElementById('last-check-note');\n"
         "  if (!el) return;\n"
-        "  const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);\n"
-        "  el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);\n"
+        "  // Try to fetch server-side last run timestamp first\n"
+        "  if (window.location.protocol !== 'file:') {\n"
+        "    fetch('last_run.json?t=' + Date.now(), { cache: 'no-store' })\n"
+        "      .then(function(r){ return r.ok ? r.json() : null; })\n"
+        "      .then(function(data){\n"
+        "        if (data && data.lastRunAt) {\n"
+        "          el.textContent = 'Last pipeline run: ' + formatLocalTimestamp(data.lastRunAt);\n"
+        "        } else {\n"
+        "          const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);\n"
+        "          el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);\n"
+        "        }\n"
+        "      })\n"
+        "      .catch(function(){\n"
+        "        const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);\n"
+        "        el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);\n"
+        "      });\n"
+        "  } else {\n"
+        "    const last = localStorage.getItem(LAST_PUBLISHED_CHECK_KEY);\n"
+        "    el.textContent = 'Last automatic check: ' + formatLocalTimestamp(last);\n"
+        "  }\n"
         "}\n"
         "function getVilniusNowParts() {\n"
         "  const parts = new Intl.DateTimeFormat('en-CA', {\n"
@@ -576,6 +595,13 @@ def write_index_page(docs_dir: Path):
     html_path = docs_dir / "index.html"
     trigger_api_url = os.getenv("REPORT_TRIGGER_API_URL", "").strip()
     html_path.write_text(format_report_index(reports, trigger_api_url), encoding="utf-8")
+
+    # Write server-side last run timestamp so the page can show it regardless of browser state
+    last_run_path = docs_dir / "last_run.json"
+    last_run_path.write_text(
+        json.dumps({"lastRunAt": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}),
+        encoding="utf-8",
+    )
 
 
 def parse_source_and_date(filename: str):
