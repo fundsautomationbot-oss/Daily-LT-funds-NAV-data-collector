@@ -2,10 +2,6 @@ name: Daily Pension Automation
 
 on:
   workflow_dispatch:
-  schedule:
-    # 07:00 Europe/Vilnius on weekdays only (Monday-Friday)
-    - cron: "0 4 * * 1-5"
-    - cron: "0 5 * * 1-5"
 
 jobs:
   run-automation:
