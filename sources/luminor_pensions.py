@@ -83,11 +83,6 @@ class LuminorPensionsScraper(BaseScraper):
 
     def resolve_http_proxy(self) -> str:
         proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip()
-        explicit_proxy = os.getenv("LUMINOR_HTTP_PROXY", "").strip()
-
-        # Prefer server+credentials when provided to avoid drift between secrets.
-        if not proxy_server and explicit_proxy:
-            return explicit_proxy
 
         if not proxy_server:
             return ""
