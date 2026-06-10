@@ -42,6 +42,10 @@ LUMINOR_TABLE_URLS = [
 ]
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
+DEFAULT_CLOUDFLARE_WAIT_MS = 45000
+DEFAULT_POST_CHALLENGE_SETTLE_MS = 2000
+DEFAULT_CHALLENGE_POLL_MS = 1500
+
 
 class LuminorPensionsScraper(BaseScraper):
 
@@ -144,6 +148,44 @@ class LuminorPensionsScraper(BaseScraper):
             print(f"Saved debug HTML: {html_path}")
         except Exception as exc:
             print(f"Failed to save debug HTML ({safe_label}): {exc}")
+
+    def _get_env_int(self, key: str, default: int) -> int:
+        raw = os.getenv(key, "").strip()
+        if not raw:
+            return default
+
+        try:
+            value = int(raw)
+            return value if value > 0 else default
+        except Exception:
+            return default
+
+    def _wait_for_security_check_to_settle(self, context_label: str) -> None:
+        if not self.page:
+            return
+
+        max_wait_ms = self._get_env_int("LUMINOR_CLOUDFLARE_WAIT_MS", DEFAULT_CLOUDFLARE_WAIT_MS)
+        poll_ms = self._get_env_int("LUMINOR_CLOUDFLARE_POLL_MS", DEFAULT_CHALLENGE_POLL_MS)
+        settle_ms = self._get_env_int("LUMINOR_POST_CHALLENGE_SETTLE_MS", DEFAULT_POST_CHALLENGE_SETTLE_MS)
+
+        waited_ms = 0
+        while waited_ms < max_wait_ms:
+            try:
+                html_content = self.page.content()
+            except Exception:
+                break
+
+            if not self.is_cloudflare_challenge(html_content):
+                if settle_ms:
+                    self.page.wait_for_timeout(settle_ms)
+                return
+
+            self.page.wait_for_timeout(poll_ms)
+            waited_ms += poll_ms
+
+        print(
+            f"Security check still visible after waiting {max_wait_ms}ms ({context_label})"
+        )
 
     def _looks_like_host(self, value: str) -> bool:
         try:
@@ -490,8 +532,11 @@ class LuminorPensionsScraper(BaseScraper):
                 except Exception:
                     pass
 
-                response = self.page.goto(base_url, wait_until="domcontentloaded", timeout=90000)
+                response = self.page.goto(base_url, wait_until="domcontentloaded", timeout=120000)
                 self._accept_cookies_if_visible()
+                self._wait_for_security_check_to_settle(
+                    f"table_{'proxy' if use_proxy else 'direct'}"
+                )
                 self._debug_capture_browser_state(
                     f"table_{'proxy' if use_proxy else 'direct'}_{urllib.parse.urlsplit(base_url).netloc}"
                 )
@@ -499,7 +544,7 @@ class LuminorPensionsScraper(BaseScraper):
                 if response and response.status >= 400:
                     raise RuntimeError(f"HTTP {response.status}")
 
-                self.page.wait_for_timeout(1500)
+                self.page.wait_for_timeout(2500)
                 html_content = self.page.content()
 
                 if self.is_cloudflare_challenge(html_content):
@@ -624,8 +669,11 @@ class LuminorPensionsScraper(BaseScraper):
                 except Exception:
                     pass
 
-                response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
+                response = self.page.goto(url, wait_until="domcontentloaded", timeout=120000)
                 self._accept_cookies_if_visible()
+                self._wait_for_security_check_to_settle(
+                    f"fund_{fund_id}_{'proxy' if use_proxy else 'direct'}"
+                )
                 self._debug_capture_browser_state(
                     f"fund_{fund_id}_{'proxy' if use_proxy else 'direct'}"
                 )
@@ -633,7 +681,7 @@ class LuminorPensionsScraper(BaseScraper):
                 if response and response.status >= 400:
                     raise RuntimeError(f"HTTP {response.status}")
 
-                self.page.wait_for_timeout(1500)
+                self.page.wait_for_timeout(2500)
                 return self.page.content()
 
             except Exception as exc:
