@@ -8,7 +8,12 @@ on:
     - cron: '0 14 * * *'
     - cron: '0 15 * * *'
     - cron: '0 16 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Run outside 15-18 Europe/Vilnius window'
+        required: false
+        default: 'false'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -30,8 +35,11 @@ jobs:
         id: local_time_gate
         shell: bash
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+          force_run="${{ github.event.inputs.force_run || 'false' }}"
+          force_run="$(echo "$force_run" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$force_run" == "true" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Force run enabled: bypassing time gate."
             exit 0
           fi
 
