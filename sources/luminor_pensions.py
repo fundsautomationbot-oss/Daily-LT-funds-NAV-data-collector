@@ -178,19 +178,46 @@ class LuminorPensionsScraper(BaseScraper):
         raise last_error
 
     def extract_payload(self, html: str) -> dict:
-        match = re.search(
-            r'dnbPensionFunds"\s*:\s*(\{.*?\})\s*,\s*"urlIsAjaxTrusted"',
-            html,
-            flags=re.DOTALL,
-        )
-
-        if not match:
+        key_match = re.search(r'"dnbPensionFunds"\s*:', html)
+        if not key_match:
             return {}
 
-        try:
-            return json.loads(match.group(1))
-        except Exception:
+        start = html.find("{", key_match.end())
+        if start == -1:
             return {}
+
+        depth = 0
+        in_string = False
+        escaped = False
+
+        for idx in range(start, len(html)):
+            ch = html[idx]
+
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+                continue
+
+            if ch == '"':
+                in_string = True
+                continue
+
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    raw_json = html[start : idx + 1]
+                    try:
+                        return json.loads(raw_json)
+                    except Exception:
+                        return {}
+
+        return {}
 
     def build_row(self, payload: dict) -> dict:
         fund_rates = payload.get("fundRates") or {}
@@ -233,6 +260,8 @@ class LuminorPensionsScraper(BaseScraper):
         try:
             rows = []
             blocked_fund_ids = []
+            used_browser_fallback = False
+            payload_missing_ids = []
 
             for fund_id in LUMINOR_II_FUND_IDS:
                 try:
@@ -240,7 +269,16 @@ class LuminorPensionsScraper(BaseScraper):
                     payload = self.extract_payload(html)
 
                     if not payload:
-                        continue
+                        payload_missing_ids.append(fund_id)
+                        if not self.page:
+                            self.setup_browser()
+
+                        html = self.fetch_html_via_browser_navigation(fund_id)
+                        payload = self.extract_payload(html)
+                        if payload:
+                            used_browser_fallback = True
+                        else:
+                            continue
 
                     row = self.build_row(payload)
 
@@ -258,6 +296,15 @@ class LuminorPensionsScraper(BaseScraper):
                     print(f"Failed fund {fund_id}: {exc}")
 
             print(f"Parsed {len(rows)} funds from server payload")
+            if payload_missing_ids:
+                print(
+                    "Payload was missing for HTTP fetch on fund IDs: "
+                    + ", ".join(payload_missing_ids)
+                )
+            if used_browser_fallback:
+                print("Recovered some funds using browser navigation fallback")
+            if blocked_fund_ids:
+                print("HTTP 403 on fund IDs: " + ", ".join(blocked_fund_ids))
 
             df = pd.DataFrame(rows)
 
@@ -276,6 +323,8 @@ class LuminorPensionsScraper(BaseScraper):
         except Exception as exc:
             print(f"Error scraping: {exc}")
             return None
+        finally:
+            self.cleanup_browser()
 
 
 if __name__ == "__main__":
