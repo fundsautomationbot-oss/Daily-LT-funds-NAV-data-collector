@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LT Pension Funds – NAV Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    * { font-family: 'Inter', system-ui, sans-serif; }
+    .card { @apply bg-white rounded-2xl border border-slate-200 shadow-sm; }
+    .chart-wrap { position: relative; }
+    .bucket-btn.active { background: #0f172a; color: #fff; }
+    .bucket-btn { transition: background .15s, color .15s; }
+    .date-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+    .date-btn { transition: background .15s, color .15s, border-color .15s; }
+    .provider-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+    ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-track { background: #f1f5f9; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .fade-in { animation: fadeIn .35s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .stat-card { background: linear-gradient(135deg, #fff 60%, #f8fafc); }
+    .perf-pos { color: #16a34a; }
+    .perf-neg { color: #dc2626; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased min-h-screen">
+
+<!-- ── Header ── -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+      </div>
+      <div>
+        <h1 class="text-base font-semibold text-slate-900 leading-none">LT Pension Funds</h1>
+        <p class="text-xs text-slate-400 mt-0.5">NAV Dashboard</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="last-updated" class="text-xs text-slate-400 hidden sm:block">Loading…</span>
+      <a href="index.html" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">← Reports</a>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+
+  <!-- ── Loading / Error state ── -->
+  <div id="loading-state" class="card p-12 text-center">
+    <div class="inline-block w-8 h-8 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin mb-4"></div>
+    <p class="text-slate-500 text-sm">Loading pension fund data…</p>
+  </div>
+
+  <!-- ── Dashboard (hidden until loaded) ── -->
+  <div id="dashboard" class="hidden space-y-6 sm:space-y-8 fade-in">
+
+    <!-- ── Summary cards ── -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div class="card stat-card p-4 sm:p-5">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total AUM</p>
+        <p id="stat-aum" class="mt-2 text-2xl font-bold text-slate-900">–</p>
+        <p class="text-xs text-slate-400 mt-1" id="stat-aum-date">Latest date</p>
+      </div>
+      <div class="card stat-card p-4 sm:p-5">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Funds Tracked</p>
+        <p id="stat-funds" class="mt-2 text-2xl font-bold text-slate-900">–</p>
+        <p class="text-xs text-slate-400 mt-1">Across all providers</p>
+      </div>
+      <div class="card stat-card p-4 sm:p-5">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Providers</p>
+        <p id="stat-providers" class="mt-2 text-2xl font-bold text-slate-900">–</p>
+        <p class="text-xs text-slate-400 mt-1">Active institutions</p>
+      </div>
+      <div class="card stat-card p-4 sm:p-5">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Date Range</p>
+        <p id="stat-range" class="mt-2 text-lg font-bold text-slate-900 leading-tight">–</p>
+        <p class="text-xs text-slate-400 mt-1" id="stat-days">– trading days</p>
+      </div>
+    </div>
+
+    <!-- ── Date Filter Bar ── -->
+    <div class="card p-3 sm:p-4">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">View date</span>
+        <div id="date-filter-bar" class="flex flex-wrap gap-2"></div>
+        <span id="date-filter-label" class="text-xs text-slate-400 sm:ml-auto whitespace-nowrap"></span>
+      </div>
+    </div>
+
+    <!-- ── Row: NAV trends + AUM donut ── -->
+    <div class="grid lg:grid-cols-3 gap-4 sm:gap-6">
+
+      <!-- NAV Trend chart (2/3 width) -->
+      <div class="card p-4 sm:p-6 lg:col-span-2">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">NAV Trends Over Time</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Unit value (Vieneto vertė) by provider</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500 whitespace-nowrap">Age bucket:</span>
+            <div id="bucket-tabs" class="flex flex-wrap gap-1.5"></div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height: 300px">
+          <canvas id="nav-trend-chart"></canvas>
+        </div>
+        <div id="nav-legend" class="flex flex-wrap gap-x-4 gap-y-1.5 mt-4"></div>
+      </div>
+
+      <!-- AUM Donut (1/3 width) -->
+      <div class="card p-4 sm:p-6">
+        <h2 class="text-base font-semibold text-slate-900 mb-1">AUM by Provider</h2>
+        <p class="text-xs text-slate-400 mb-4" id="aum-donut-subtitle">Latest date — total net assets</p>
+        <div class="chart-wrap" style="height: 220px">
+          <canvas id="aum-donut-chart"></canvas>
+        </div>
+        <div id="aum-legend" class="mt-4 space-y-1.5"></div>
+      </div>
+    </div>
+
+    <!-- ── Provider Comparison ── -->
+    <div class="card p-4 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900">Cross-Provider NAV Comparison</h2>
+          <p class="text-xs text-slate-400 mt-0.5" id="comparison-subtitle">All age buckets on latest date — grouped by bucket</p>
+        </div>
+        <div id="provider-toggles" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div class="chart-wrap overflow-x-auto" style="height: 320px">
+        <canvas id="comparison-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- ── AUM Bar + Performance ── -->
+    <div class="grid lg:grid-cols-2 gap-4 sm:gap-6">
+
+      <!-- AUM by Provider bar -->
+      <div class="card p-4 sm:p-6">
+        <h2 class="text-base font-semibold text-slate-900 mb-1">Total AUM by Provider</h2>
+        <p class="text-xs text-slate-400 mb-4" id="aum-bar-subtitle">Latest date (€ millions)</p>
+        <div class="chart-wrap" style="height: 260px">
+          <canvas id="aum-bar-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Performance % change -->
+      <div class="card p-4 sm:p-6">
+        <h2 class="text-base font-semibold text-slate-900 mb-1">NAV Performance</h2>
+        <p class="text-xs text-slate-400 mb-4" id="perf-subtitle">% change over tracked period</p>
+        <div class="chart-wrap" style="height: 260px">
+          <canvas id="perf-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Fund Data Table ── -->
+    <div class="card p-4 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900" id="table-title">All Funds — Latest Values</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Sorted by provider · NAV and net assets</p>
+        </div>
+        <input id="table-filter" type="text" placeholder="Filter funds…"
+          class="w-full sm:w-64 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition" />
+      </div>
+      <div class="overflow-x-auto -mx-1">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-200">
+              <th class="text-left font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">Provider</th>
+              <th class="text-left font-semibold text-slate-600 px-3 py-2">Fund Name</th>
+              <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">NAV (€)</th>
+              <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">Net Assets (€)</th>
+              <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">
+                Change<br><span id="change-range" class="text-slate-400 font-normal text-xs"></span>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="fund-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- end #dashboard -->
+</main>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const BUCKET_LABELS = {
+  "2003-2009": "2003–2009",
+  "1996-2002": "1996–2002",
+  "1989-1995": "1989–1995",
+  "1982-1988": "1982–1988",
+  "1975-1981": "1975–1981",
+  "1968-1974": "1968–1974",
+  "1961-1967": "1961–1967",
+  "preservation": "Preservation",
+  "other": "Other",
+};
+
+const DEFAULT_COLORS = {
+  ALLIANZ:  "#2563EB",
+  ARTEA:    "#059669",
+  GOINDEX:  "#7C3AED",
+  LUMINOR:  "#EA580C",
+  SEB:      "#DC2626",
+  SWEDBANK: "#D97706",
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+let DATA = null;
+let navChart = null;
+let compChart = null;
+let aumDonut = null;
+let aumBar = null;
+let perfChart = null;
+let activeBucket = null;
+let activeDate = null;      // the selected "snapshot" date
+let hiddenProviders = new Set();
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmtNav(v) { return typeof v === "number" ? v.toFixed(4) : "–"; }
+function fmtMillions(v) {
+  if (v == null) return "–";
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+  return v.toLocaleString();
+}
+function fmtEur(v) {
+  if (v == null) return "–";
+  return "€" + v.toLocaleString("en-US");
+}
+function providerColor(name) {
+  return (DATA?.providerColors || DEFAULT_COLORS)[name] || "#94a3b8";
+}
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function latestDate()   { return DATA.dates[DATA.dates.length - 1]; }
+function firstDate()    { return DATA.dates[0]; }
+function selectedDate() { return activeDate || latestDate(); }
+
+function fundsInBucket(bucket) {
+  return DATA.funds.filter(f => f.bucket === bucket);
+}
+
+function prevDate() {
+  const idx = DATA.dates.indexOf(selectedDate());
+  return idx > 0 ? DATA.dates[idx - 1] : null;
+}
+
+function calcChange(fund) {
+  const prev = prevDate();
+  if (!prev) return null;
+  const before = fund.nav[prev];
+  const after  = fund.nav[selectedDate()];
+  if (before == null || after == null) return null;
+  return ((after - before) / before) * 100;
+}
+
+// ── Chart defaults ─────────────────────────────────────────────────────────
+Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+Chart.defaults.font.size   = 12;
+Chart.defaults.color       = "#64748b";
+
+const gridColor = "#f1f5f9";
+const tickColor = "#94a3b8";
+
+function baseScaleOptions() {
+  return {
+    grid: { color: gridColor, drawBorder: false },
+    ticks: { color: tickColor },
+  };
+}
+
+// ── Date Filter Bar ────────────────────────────────────────────────────────
+function buildDateFilterBar() {
+  const container = document.getElementById("date-filter-bar");
+  container.innerHTML = "";
+  DATA.dates.forEach(date => {
+    const btn = document.createElement("button");
+    btn.className = "date-btn px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100";
+    btn.textContent = date;
+    btn.dataset.date = date;
+    if (date === selectedDate()) btn.classList.add("active");
+    btn.addEventListener("click", () => {
+      activeDate = date;
+      document.querySelectorAll(".date-btn").forEach(b => b.classList.toggle("active", b.dataset.date === date));
+      updateDateLabel();
+      renderSnapshotCharts();
+    });
+    container.appendChild(btn);
+  });
+  updateDateLabel();
+}
+
+function updateDateLabel() {
+  const el = document.getElementById("date-filter-label");
+  const sd = selectedDate();
+  const isLatest = sd === latestDate();
+  el.textContent = isLatest ? "Showing latest data" : `Showing data for ${sd}`;
+}
+
+function renderSnapshotCharts() {
+  const sd = selectedDate();
+  // Update subtitles
+  document.getElementById("stat-aum-date").textContent     = sd;
+  document.getElementById("aum-donut-subtitle").textContent = `${sd} — total net assets`;
+  document.getElementById("aum-bar-subtitle").textContent   = `${sd} (€ millions)`;
+  document.getElementById("comparison-subtitle").textContent = `All age buckets on ${sd} — grouped by bucket`;
+  document.getElementById("table-title").textContent        = `All Funds — ${sd}`;
+  // Update AUM stat card
+  const totalAum = DATA.funds.reduce((s, f) => s + (f.assets[sd] || 0), 0);
+  document.getElementById("stat-aum").textContent = "€" + fmtMillions(totalAum);
+  // Re-render all snapshot charts
+  renderNavTrendChart();   // to update the vertical marker
+  renderComparisonChart();
+  renderAumDonut();
+  renderAumBar();
+  renderPerfChart();
+  renderFundTable(document.getElementById("table-filter").value);
+}
+
+// ── Bucket Tabs ────────────────────────────────────────────────────────────
+function buildBucketTabs() {
+  const container = document.getElementById("bucket-tabs");
+  const buckets = [...new Set(DATA.funds.map(f => f.bucket))]
+    .sort((a, b) => {
+      const order = DATA.bucketOrder || [];
+      const ia = order.indexOf(a); const ib = order.indexOf(b);
+      if (ia === -1 && ib === -1) return 0;
+      if (ia === -1) return 1; if (ib === -1) return -1;
+      return ia - ib;
+    });
+
+  activeBucket = activeBucket || buckets[0];
+  container.innerHTML = "";
+  buckets.forEach(bucket => {
+    const btn = document.createElement("button");
+    btn.className = "bucket-btn px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-100";
+    btn.textContent = BUCKET_LABELS[bucket] || bucket;
+    btn.dataset.bucket = bucket;
+    if (bucket === activeBucket) btn.classList.add("active");
+    btn.addEventListener("click", () => {
+      activeBucket = bucket;
+      document.querySelectorAll(".bucket-btn").forEach(b => b.classList.toggle("active", b.dataset.bucket === bucket));
+      renderNavTrendChart();
+    });
+    container.appendChild(btn);
+  });
+}
+
+// ── Provider Toggles ───────────────────────────────────────────────────────
+function buildProviderToggles() {
+  const container = document.getElementById("provider-toggles");
+  container.innerHTML = "";
+  DATA.providers.forEach(p => {
+    const btn = document.createElement("button");
+    const color = providerColor(p);
+    btn.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition";
+    btn.style.borderColor = color;
+    btn.style.color = hiddenProviders.has(p) ? "#94a3b8" : color;
+    btn.style.background = hiddenProviders.has(p) ? "#f8fafc" : hexToRgba(color, 0.08);
+    btn.innerHTML = `<span class="provider-dot" style="background:${color}"></span>${p}`;
+    btn.addEventListener("click", () => {
+      if (hiddenProviders.has(p)) hiddenProviders.delete(p);
+      else hiddenProviders.add(p);
+      buildProviderToggles();
+      renderComparisonChart();
+    });
+    container.appendChild(btn);
+  });
+}
+
+// ── NAV Trend Chart ────────────────────────────────────────────────────────
+function renderNavTrendChart() {
+  const funds = fundsInBucket(activeBucket).filter(f => !hiddenProviders.has(f.provider));
+  const labels = DATA.dates;
+  const sd = selectedDate();
+  const selectedIdx = labels.indexOf(sd);
+
+  const datasets = funds.map(f => {
+    const color = providerColor(f.provider);
+    return {
+      label: f.provider,
+      data: labels.map(d => f.nav[d] ?? null),
+      borderColor: color,
+      backgroundColor: hexToRgba(color, 0.08),
+      borderWidth: 2.5,
+      pointRadius: labels.map((d, i) => i === selectedIdx ? 7 : 4),
+      pointHoverRadius: 7,
+      pointBackgroundColor: labels.map((d, i) => i === selectedIdx ? color : "#fff"),
+      pointBorderColor: color,
+      pointBorderWidth: 2,
+      tension: 0.35,
+      fill: false,
+      spanGaps: true,
+    };
+  });
+
+  // Vertical "selected date" line via a dummy dataset + afterDraw plugin
+  const verticalLinePlugin = {
+    id: "selectedDateLine",
+    afterDraw(chart) {
+      if (selectedIdx < 0) return;
+      const { ctx, chartArea, scales } = chart;
+      const x = scales.x.getPixelForValue(selectedIdx);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.strokeStyle = "rgba(15,23,42,0.18)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  const ctx = document.getElementById("nav-trend-chart");
+  if (navChart) navChart.destroy();
+  navChart = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets },
+    plugins: [verticalLinePlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0]?.label + (items[0]?.label === sd ? " ◀ selected" : ""),
+            label: ctx => ` ${ctx.dataset.label}: ${fmtNav(ctx.parsed.y)}`,
+          }
+        }
+      },
+      scales: {
+        x: { ...baseScaleOptions(), grid: { display: false } },
+        y: { ...baseScaleOptions(), ticks: { ...baseScaleOptions().ticks, callback: v => v.toFixed(3) } }
+      },
+    }
+  });
+
+  // Custom legend
+  const legend = document.getElementById("nav-legend");
+  legend.innerHTML = funds.map(f =>
+    `<span class="flex items-center gap-1.5 text-xs text-slate-600">
+      <span class="inline-block w-3 h-0.5 rounded-full" style="background:${providerColor(f.provider)}"></span>
+      <span class="font-medium" style="color:${providerColor(f.provider)}">${f.provider}</span>
+      <span class="text-slate-400">${fmtNav(f.nav[sd])}</span>
+    </span>`
+  ).join("");
+}
+
+// ── Cross-Provider Comparison Chart ────────────────────────────────────────
+function renderComparisonChart() {
+  const sd = selectedDate();
+  const buckets = (DATA.bucketOrder || []).filter(b => DATA.funds.some(f => f.bucket === b));
+  const bucketLabels = buckets.map(b => BUCKET_LABELS[b] || b);
+
+  const providers = DATA.providers.filter(p => !hiddenProviders.has(p));
+  const datasets = providers.map(p => {
+    const color = providerColor(p);
+    return {
+      label: p,
+      data: buckets.map(b => {
+        const f = DATA.funds.find(f2 => f2.provider === p && f2.bucket === b);
+        return f ? (f.nav[sd] ?? null) : null;
+      }),
+      backgroundColor: hexToRgba(color, 0.80),
+      borderColor: color,
+      borderWidth: 1.5,
+      borderRadius: 4,
+      borderSkipped: false,
+    };
+  });
+
+  const ctx = document.getElementById("comparison-chart");
+  if (compChart) compChart.destroy();
+  compChart = new Chart(ctx, {
+    type: "bar",
+    data: { labels: bucketLabels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { usePointStyle: true, pointStyle: "circle", padding: 14, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtNav(ctx.parsed.y)}` } }
+      },
+      scales: {
+        x: { ...baseScaleOptions(), grid: { display: false } },
+        y: { ...baseScaleOptions(), beginAtZero: false, ticks: { ...baseScaleOptions().ticks, callback: v => v.toFixed(2) } }
+      }
+    }
+  });
+}
+
+// ── AUM Donut Chart ────────────────────────────────────────────────────────
+function renderAumDonut() {
+  const sd = selectedDate();
+  const providerAum = DATA.providers.map(p => {
+    const total = DATA.funds
+      .filter(f => f.provider === p)
+      .reduce((s, f) => s + (f.assets[sd] || 0), 0);
+    return { provider: p, total };
+  }).filter(x => x.total > 0);
+
+  const ctx = document.getElementById("aum-donut-chart");
+  if (aumDonut) aumDonut.destroy();
+  aumDonut = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: providerAum.map(x => x.provider),
+      datasets: [{
+        data: providerAum.map(x => x.total),
+        backgroundColor: providerAum.map(x => providerColor(x.provider)),
+        borderColor: "#fff",
+        borderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: "62%",
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: €${fmtMillions(ctx.parsed)}` } }
+      }
+    }
+  });
+
+  // Custom legend
+  const totalAum = providerAum.reduce((s, x) => s + x.total, 0);
+  const legend = document.getElementById("aum-legend");
+  legend.innerHTML = providerAum
+    .sort((a, b) => b.total - a.total)
+    .map(x => {
+      const pct = totalAum > 0 ? ((x.total / totalAum) * 100).toFixed(1) : "0";
+      return `<div class="flex items-center justify-between text-xs">
+        <span class="flex items-center gap-1.5">
+          <span class="provider-dot" style="background:${providerColor(x.provider)}"></span>
+          <span class="font-medium text-slate-700">${x.provider}</span>
+        </span>
+        <span class="text-slate-500">€${fmtMillions(x.total)} <span class="text-slate-400">(${pct}%)</span></span>
+      </div>`;
+    }).join("");
+}
+
+// ── AUM Bar Chart ──────────────────────────────────────────────────────────
+function renderAumBar() {
+  const sd = selectedDate();
+  const providerAum = DATA.providers.map(p => ({
+    provider: p,
+    total: DATA.funds.filter(f => f.provider === p).reduce((s, f) => s + (f.assets[sd] || 0), 0),
+  })).filter(x => x.total > 0).sort((a, b) => b.total - a.total);
+
+  const ctx = document.getElementById("aum-bar-chart");
+  if (aumBar) aumBar.destroy();
+  aumBar = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: providerAum.map(x => x.provider),
+      datasets: [{
+        label: "AUM (€M)",
+        data: providerAum.map(x => x.total / 1e6),
+        backgroundColor: providerAum.map(x => providerColor(x.provider)),
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` €${ctx.parsed.x.toFixed(0)}M` } }
+      },
+      scales: {
+        x: { ...baseScaleOptions(), ticks: { ...baseScaleOptions().ticks, callback: v => "€" + v + "M" } },
+        y: { ...baseScaleOptions(), grid: { display: false } },
+      }
+    }
+  });
+}
+
+// ── Performance Chart ──────────────────────────────────────────────────────
+function renderPerfChart() {
+  const first = firstDate();
+  const last  = selectedDate();
+  if (first === last) {
+    document.getElementById("perf-subtitle").textContent = "Select a different date to see % change";
+    const ctx = document.getElementById("perf-chart");
+    if (perfChart) perfChart.destroy();
+    ctx.getContext("2d").clearRect(0, 0, ctx.width, ctx.height);
+    perfChart = null;
+    return;
+  }
+  document.getElementById("perf-subtitle").textContent = `% NAV change  ${first} → ${last}`;
+
+  // Avg % change per bucket per provider
+  const buckets = (DATA.bucketOrder || []).filter(b =>
+    DATA.funds.some(f => f.bucket === b && f.nav[first] && f.nav[last])
+  );
+  const bucketLabels = buckets.map(b => BUCKET_LABELS[b] || b);
+
+  const datasets = DATA.providers.map(p => {
+    const color = providerColor(p);
+    return {
+      label: p,
+      data: buckets.map(b => {
+        const f = DATA.funds.find(f2 => f2.provider === p && f2.bucket === b);
+        if (!f || !f.nav[first] || !f.nav[last]) return null;
+        return ((f.nav[last] - f.nav[first]) / f.nav[first]) * 100;
+      }),
+      backgroundColor: providerAum => hexToRgba(color, 0.80),
+      borderColor: color,
+      borderWidth: 1,
+      borderRadius: 4,
+      borderSkipped: false,
+    };
+  });
+
+  // Flatten to get actual colors (resolve lambda)
+  datasets.forEach((d, i) => {
+    d.backgroundColor = hexToRgba(providerColor(DATA.providers[i]), 0.80);
+  });
+
+  const ctx = document.getElementById("perf-chart");
+  if (perfChart) perfChart.destroy();
+  perfChart = new Chart(ctx, {
+    type: "bar",
+    data: { labels: bucketLabels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { usePointStyle: true, pointStyle: "circle", padding: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(3) + "%" : "n/a"}` } }
+      },
+      scales: {
+        x: { ...baseScaleOptions(), grid: { display: false } },
+        y: { ...baseScaleOptions(), ticks: { ...baseScaleOptions().ticks, callback: v => v.toFixed(2) + "%" } }
+      }
+    }
+  });
+}
+
+// ── Fund Table ─────────────────────────────────────────────────────────────
+function renderFundTable(filter) {
+  const sd = selectedDate();
+  const tbody = document.getElementById("fund-table-body");
+  const q = (filter || "").toLowerCase();
+
+  document.getElementById("table-title").textContent = `All Funds — ${sd}`;
+  const changeRangeEl = document.getElementById("change-range");
+  const prev = prevDate();
+  if (!prev) {
+    changeRangeEl.textContent = "no prior day";
+  } else {
+    changeRangeEl.textContent = `${prev} → ${sd}`;
+  }
+
+  const rows = DATA.funds
+    .filter(f => !q || f.name.toLowerCase().includes(q) || f.provider.toLowerCase().includes(q))
+    .map(f => {
+      const nav    = f.nav[sd];
+      const assets = f.assets[sd];
+      const change = calcChange(f);
+      const color  = providerColor(f.provider);
+      const changeHtml = change != null
+        ? `<span class="${change >= 0 ? "perf-pos" : "perf-neg"} font-medium">${change >= 0 ? "+" : ""}${change.toFixed(3)}%</span>`
+        : `<span class="text-slate-400">–</span>`;
+      return `<tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <td class="px-3 py-2.5 whitespace-nowrap">
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold" style="color:${color}">
+            <span class="provider-dot" style="background:${color}"></span>${f.provider}
+          </span>
+        </td>
+        <td class="px-3 py-2.5 text-slate-700 text-xs">${f.name}</td>
+        <td class="px-3 py-2.5 text-right font-mono text-slate-800 text-xs whitespace-nowrap">${fmtNav(nav)}</td>
+        <td class="px-3 py-2.5 text-right text-slate-600 text-xs whitespace-nowrap">${assets != null ? "€" + assets.toLocaleString("en-US") : "–"}</td>
+        <td class="px-3 py-2.5 text-right text-xs whitespace-nowrap">${changeHtml}</td>
+      </tr>`;
+    });
+
+  tbody.innerHTML = rows.join("") || `<tr><td colspan="5" class="text-center text-slate-400 text-sm py-8">No funds match your filter.</td></tr>`;
+}
+
+// ── Summary Stats ──────────────────────────────────────────────────────────
+function renderStats() {
+  const sd = selectedDate();
+  const totalAum = DATA.funds.reduce((s, f) => s + (f.assets[sd] || 0), 0);
+  document.getElementById("stat-aum").textContent      = "€" + fmtMillions(totalAum);
+  document.getElementById("stat-aum-date").textContent = sd;
+  document.getElementById("stat-funds").textContent    = DATA.funds.length;
+  document.getElementById("stat-providers").textContent = DATA.providers.length;
+  document.getElementById("stat-range").textContent    = `${firstDate()} – ${latestDate()}`;
+  document.getElementById("stat-days").textContent     = `${DATA.dates.length} trading days`;
+  document.getElementById("last-updated").textContent  = "Updated: " + new Date(DATA.generatedAt).toLocaleDateString();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const res = await fetch("chart_data.json?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    DATA = await res.json();
+    activeDate = latestDate();
+
+    document.getElementById("loading-state").classList.add("hidden");
+    document.getElementById("dashboard").classList.remove("hidden");
+
+    renderStats();
+    buildDateFilterBar();
+    buildBucketTabs();
+    buildProviderToggles();
+    renderNavTrendChart();
+    renderComparisonChart();
+    renderAumDonut();
+    renderAumBar();
+    renderPerfChart();
+    renderFundTable("");
+
+    document.getElementById("table-filter").addEventListener("input", e => renderFundTable(e.target.value));
+  } catch (err) {
+    document.getElementById("loading-state").innerHTML =
+      `<p class="text-red-500 text-sm font-medium">Failed to load chart_data.json</p>
+       <p class="text-slate-400 text-xs mt-2">${err.message}</p>
+       <p class="text-slate-400 text-xs mt-1">Make sure to open this page through a web server, not as a file:// URL.</p>
+       <p class="text-slate-400 text-xs mt-1">Run <code class="bg-slate-100 px-1 rounded">python3 generate_chart_data.py</code> first to generate the data file.</p>`;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

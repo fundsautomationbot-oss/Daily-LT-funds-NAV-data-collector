@@ -128,7 +128,17 @@ def main():
         "failed": failed_scrapers,
     }))
 
-    # Step 3: Send email (optional via SEND_EMAIL env var)
+    # Step 3: Regenerate chart data for the dashboard
+    print("\n=== Running generate_chart_data.py ===")
+    chart_script = BASE_DIR / "generate_chart_data.py"
+    if chart_script.exists():
+        chart_success = run_step(chart_script, retries=0)
+        if not chart_success:
+            print("Warning: chart data generation failed. Dashboard may show stale data.")
+    else:
+        print(f"Warning: {chart_script} not found")
+
+    # Step 4: Send email (optional via SEND_EMAIL env var)
     send_email_enabled = os.getenv("SEND_EMAIL", "true").lower() in ("1", "true", "yes")
     if send_email_enabled:
         print("\n=== Running send_email.py ===")

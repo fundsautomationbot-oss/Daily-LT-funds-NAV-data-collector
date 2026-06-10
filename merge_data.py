@@ -200,6 +200,7 @@ def format_report_index(reports, trigger_api_url):
         "            <label class=\"text-sm font-medium text-slate-700\" for=\"report-select\">Report date</label>\n"
         "            <select id=\"report-select\" class=\"w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200\"></select>\n"
         "            <a id=\"download-link\" class=\"w-full sm:w-auto text-center rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700\" href=\"#\" download>Download Excel</a>\n"
+        "            <a href=\"dashboard.html\" class=\"w-full sm:w-auto text-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50\">📊 Dashboard</a>\n"
         "          </div>\n"
         "        </div>\n"
         "        <div class=\"rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600\">\n"
