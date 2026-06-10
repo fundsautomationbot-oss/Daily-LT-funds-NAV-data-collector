@@ -135,10 +135,10 @@ jobs:
               except Exception:
                   pass
 
-            if local_gate != "true":
+          if local_gate != "true":
               subject = "⏭️ LT Pension pipeline – skipped (outside 15:00-18:59 Vilnius window)"
               body = f"The scheduled trigger fired, but local-time gate skipped execution.\n\nRun: {run_url}"
-            elif skipped == "true":
+          elif skipped == "true":
               subject = "⏭️ LT Pension pipeline – skipped (report already exists)"
               body = f"The pipeline was skipped — yesterday's report already exists in docs/.\n\nRun: {run_url}"
           elif failed_scrapers:
