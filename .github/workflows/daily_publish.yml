@@ -12,6 +12,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  TEMP_IGNORE_EXISTING_REPORT: 'true'
 
 permissions:
   contents: write
@@ -46,6 +47,12 @@ jobs:
         if: steps.local_time_gate.outputs.run == 'true'
         id: check_existing
         run: |
+          if [[ "${TEMP_IGNORE_EXISTING_REPORT}" == "true" ]]; then
+            echo "Temporary override enabled: ignoring existing report check."
+            echo "skip=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           YESTERDAY=$(TZ=Europe/Vilnius date -d "yesterday" +%Y-%m-%d)
           if ls docs/pension_data_combined_${YESTERDAY}.html 2>/dev/null; then
             echo "Report for ${YESTERDAY} already exists. Skipping pipeline."
