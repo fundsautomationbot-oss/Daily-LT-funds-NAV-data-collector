@@ -6,6 +6,7 @@ Fetches II pillar fund data from server-rendered dnbPensionFunds payload.
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
@@ -163,6 +164,56 @@ class LuminorPensionsScraper(BaseScraper):
 
         raise last_error
 
+    def fetch_payload_via_curl(self, fund_id: str, use_proxy: bool = True) -> dict:
+        proxy_url = self.resolve_http_proxy() if use_proxy else ""
+        last_error = None
+
+        for base_url in LUMINOR_BASE_URLS:
+            url = self.build_url(base_url, fund_id)
+            command = [
+                "curl",
+                "-sS",
+                "-L",
+                "--compressed",
+                "--max-time",
+                "45",
+                "-A",
+                (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+            ]
+
+            if proxy_url:
+                command.extend(["--proxy", proxy_url])
+
+            command.append(url)
+
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=55,
+                    check=False,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+            if result.returncode != 0:
+                last_error = RuntimeError(result.stderr.strip() or f"curl failed with code {result.returncode}")
+                continue
+
+            payload = self.extract_payload(result.stdout)
+            if payload:
+                return payload
+
+        if last_error:
+            raise last_error
+        return {}
+
     def fetch_html_via_browser_navigation(self, fund_id: str, use_proxy: bool = True) -> str:
         self.ensure_browser_mode(use_proxy=use_proxy)
 
@@ -284,6 +335,18 @@ class LuminorPensionsScraper(BaseScraper):
 
             for fund_id in LUMINOR_II_FUND_IDS:
                 try:
+                    payload = self.fetch_payload_via_curl(fund_id, use_proxy=True)
+                    if not payload:
+                        payload = self.fetch_payload_via_curl(fund_id, use_proxy=False)
+                        if payload:
+                            proxy_bypass_ids.append(fund_id)
+
+                    if payload:
+                        row = self.build_row(payload)
+                        if row:
+                            rows.append(row)
+                        continue
+
                     html = self.fetch_html(fund_id)
                     payload = self.extract_payload(html)
 
