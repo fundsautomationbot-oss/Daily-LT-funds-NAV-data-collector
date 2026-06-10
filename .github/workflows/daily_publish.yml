@@ -73,10 +73,10 @@ jobs:
           SEND_EMAIL: 'false'
           REPORT_TRIGGER_API_URL: ${{ vars.REPORT_TRIGGER_API_URL }}
           # Proxy only for Luminor — other scrapers run without it
-          LUMINOR_HTTP_PROXY: ${{ secrets.LUMINOR_HTTP_PROXY }}
-          LUMINOR_PROXY_SERVER: ${{ secrets.LUMINOR_PROXY_SERVER }}
-          LUMINOR_PROXY_USERNAME: ${{ secrets.LUMINOR_PROXY_USERNAME }}
-          LUMINOR_PROXY_PASSWORD: ${{ secrets.LUMINOR_PROXY_PASSWORD }}
+          LUMINOR_HTTP_PROXY: ${{ secrets.LUMINOR_PROXY_SERVER || secrets.PLAYWRIGHT_PROXY_SERVER }}
+          LUMINOR_PROXY_SERVER: ${{ secrets.LUMINOR_PROXY_SERVER || secrets.PLAYWRIGHT_PROXY_SERVER }}
+          LUMINOR_PROXY_USERNAME: ${{ secrets.LUMINOR_PROXY_USERNAME || secrets.PLAYWRIGHT_PROXY_USERNAME }}
+          LUMINOR_PROXY_PASSWORD: ${{ secrets.LUMINOR_PROXY_PASSWORD || secrets.PLAYWRIGHT_PROXY_PASSWORD }}
 
           LUMINOR_BROWSER_RETRIES: '6'
         run: |
