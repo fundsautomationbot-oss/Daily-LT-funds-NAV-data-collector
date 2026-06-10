@@ -34,8 +34,6 @@ LUMINOR_II_FUND_IDS = ["15", "16", "17", "18", "19", "20", "23", "21"]
 LUMINOR_BASE_URLS = [
     "https://luminor.lt/lt/rinkis-fonda",
     "https://www.luminor.lt/lt/rinkis-fonda",
-    "https://luminor.lt/lt/pensiju-fondu-forma",
-    "https://www.luminor.lt/lt/pensiju-fondu-forma",
 ]
 
 
@@ -82,9 +80,6 @@ class LuminorPensionsScraper(BaseScraper):
         return []
 
     def build_url(self, base_url: str, fund_id: str) -> str:
-        if "pensiju-fondu-forma" in base_url:
-            return f"{base_url}?fund={fund_id}"
-
         return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
 
     def _looks_like_host(self, value: str) -> bool:
