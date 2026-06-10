@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import ipaddress
 from pathlib import Path
 
 import pandas as pd
@@ -81,17 +82,49 @@ class LuminorPensionsScraper(BaseScraper):
     def build_url(self, base_url: str, fund_id: str) -> str:
         return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
 
+    def _looks_like_host(self, value: str) -> bool:
+        try:
+            ipaddress.ip_address(value)
+            return True
+        except ValueError:
+            pass
+
+        return bool(re.match(r"^[A-Za-z0-9.-]+$", value))
+
     def resolve_http_proxy(self) -> str:
-        proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip()
+        proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip().strip("'\"")
 
         if not proxy_server:
             return ""
 
+        username = os.getenv("LUMINOR_PROXY_USERNAME", "").strip().strip("'\"")
+        password = os.getenv("LUMINOR_PROXY_PASSWORD", "").strip().strip("'\"")
+
+        # Support common proxy-cheap raw layout: IP:PORT:USERNAME:PASSWORD
+        raw_parts = proxy_server.split(":")
+        if (
+            len(raw_parts) == 4
+            and self._looks_like_host(raw_parts[0])
+            and raw_parts[1].isdigit()
+        ):
+            proxy_server = f"{raw_parts[0]}:{raw_parts[1]}"
+            if not username:
+                username = raw_parts[2]
+            if not password:
+                password = raw_parts[3]
+
+        # If proxy server is provided as USER:PASS@HOST:PORT, extract credentials.
+        if "@" in proxy_server and not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", proxy_server):
+            auth_part, host_part = proxy_server.rsplit("@", 1)
+            if ":" in auth_part and not username:
+                split_auth = auth_part.split(":", 1)
+                username = split_auth[0]
+                password = split_auth[1]
+            proxy_server = host_part
+
         if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", proxy_server):
             proxy_server = f"http://{proxy_server}"
 
-        username = os.getenv("LUMINOR_PROXY_USERNAME", "").strip()
-        password = os.getenv("LUMINOR_PROXY_PASSWORD", "").strip()
         if not username:
             return proxy_server
 
