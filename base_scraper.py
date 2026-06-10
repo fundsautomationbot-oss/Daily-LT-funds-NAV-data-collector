@@ -164,7 +164,7 @@ class BaseScraper(ABC):
             if values:
                 # Pick latest valid date string for deterministic output naming.
                 return max(values)
-        return datetime.today().strftime('%Y-%m-%d')
+        return ""
     
     def save_to_excel(self, df: pd.DataFrame, filename: str) -> str:
         """
@@ -215,6 +215,12 @@ class BaseScraper(ABC):
                 return None
             
             data_date = self._extract_data_date(df)
+            if not data_date:
+                print(
+                    f"No valid source date found in scraped data for {self.source_name}. "
+                    "Skipping file creation to avoid wrong fallback date."
+                )
+                return None
             
             filename = f"{self.source_name}_data_{data_date}.xlsx"
             

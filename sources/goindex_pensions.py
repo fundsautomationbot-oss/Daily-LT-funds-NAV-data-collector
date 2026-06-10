@@ -11,7 +11,6 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -220,8 +219,8 @@ class GoindexPensionsScraper(BaseScraper):
             pass
 
         if data_date is None:
-            data_date = datetime.today().strftime("%Y-%m-%d")
-            print("  Date value not found on page; using today's date as fallback.")
+            print("  Date value not found on page; skipping parse to avoid wrong fallback date.")
+            return results
 
         print(f"  Data date: {data_date}")
 

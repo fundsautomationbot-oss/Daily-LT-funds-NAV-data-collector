@@ -592,6 +592,23 @@ class LuminorPensionsScraper(BaseScraper):
 
         return self._strip_html(cell_html)
 
+    def _extract_table_data_date(self, table_html: str) -> str:
+        if not table_html:
+            return ""
+
+        # Examples: "Vieneto verčių data: 2026-06-09", with/without diacritics.
+        match = re.search(
+            r"Vieneto\s+ver(?:c|č)i(?:u|ų)\s+data\s*:\s*(\d{4}-\d{2}-\d{2})",
+            table_html,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return match.group(1)
+
+        # Fallback: first ISO date visible in page/table content.
+        match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", table_html)
+        return match.group(1) if match else ""
+
     def latest_existing_output_file(self) -> str:
         candidates = []
         for path in Path(".").glob("luminor_pensions_data_*.xlsx"):
@@ -608,6 +625,7 @@ class LuminorPensionsScraper(BaseScraper):
 
     def parse_rows_from_table_html(self, table_html: str) -> list:
         rows = []
+        table_date = self._extract_table_data_date(table_html)
         row_blocks = re.findall(r"<tr\b[^>]*>(.*?)</tr>", table_html, flags=re.IGNORECASE | re.DOTALL)
 
         for row_html in row_blocks:
@@ -637,7 +655,7 @@ class LuminorPensionsScraper(BaseScraper):
             rows.append(
                 {
                     "Fund name": fund_name,
-                    "Data": None,
+                    "Data": table_date or None,
                     "Vieneto vertė": unit_value_text,
                     "Grynieji aktyvai": assets_text,
                 }
