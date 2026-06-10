@@ -179,6 +179,20 @@ class LuminorPensionsScraper(BaseScraper):
 
         return f"{scheme}://{host}:{port}"
 
+    def playwright_proxy_is_supported(self) -> bool:
+        """Chromium does not support SOCKS5 proxy authentication via Playwright proxy settings."""
+        server = self.resolve_playwright_proxy_server()
+        if not server:
+            return True
+
+        parsed = urllib.parse.urlsplit(server)
+        if parsed.scheme != "socks5":
+            return True
+
+        username = self.resolve_proxy_username()
+        password = self.resolve_proxy_password()
+        return not (username or password)
+
     def resolve_http_proxy(self) -> str:
         proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip().strip("'\"")
 
@@ -421,6 +435,11 @@ class LuminorPensionsScraper(BaseScraper):
         return ""
 
     def fetch_table_html_via_browser_navigation(self, use_proxy: bool = True) -> str:
+        if use_proxy and not self.playwright_proxy_is_supported():
+            raise RuntimeError(
+                "Skipping browser proxy attempt: Chromium/Playwright does not support SOCKS5 proxy authentication"
+            )
+
         self.ensure_browser_mode(use_proxy=use_proxy)
 
         if not self.page:
@@ -542,6 +561,11 @@ class LuminorPensionsScraper(BaseScraper):
         return rows
 
     def fetch_html_via_browser_navigation(self, fund_id: str, use_proxy: bool = True) -> str:
+        if use_proxy and not self.playwright_proxy_is_supported():
+            raise RuntimeError(
+                "Skipping browser proxy attempt: Chromium/Playwright does not support SOCKS5 proxy authentication"
+            )
+
         self.ensure_browser_mode(use_proxy=use_proxy)
 
         if not self.page:
