@@ -45,6 +45,23 @@ class AllianzPensionsScraper(BaseScraper):
     def scrape_data(self, page) -> list:
         results = []
 
+        def extract_unit_value(raw_text: str) -> str:
+            # Keep only the first decimal number and drop trailing daily-change text.
+            match = re.search(r"\d+[\.,]\d+", raw_text)
+            return match.group(0).replace(",", ".") if match else ""
+
+        def extract_net_assets(cell_texts: list[str]) -> str:
+            # Identify the first large grouped number (e.g. "2 042 684.09") as net assets.
+            for text in cell_texts[1:]:
+                cleaned = " ".join(text.split())
+                if not cleaned or "%" in cleaned:
+                    continue
+                if re.match(r"^\d{1,3}(?:[\s\xa0]\d{3})+(?:[\.,]\d+)?$", cleaned):
+                    return cleaned
+                if re.match(r"^\d{4,}(?:[\.,]\d+)?$", cleaned):
+                    return cleaned
+            return ""
+
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(2000)
         self.dismiss_cookie_modal(page)
@@ -98,11 +115,9 @@ class AllianzPensionsScraper(BaseScraper):
             if not fund_name or fund_name in EXCLUDED_FUNDS:
                 continue
 
-            # Unit value is cell[1], net assets is cell[4]
-            unit_value_raw = cells[1].inner_text().strip()
-            unit_value = re.split(r"[\s\xa0]+[+\-]", unit_value_raw)[0].strip()
-
-            net_assets = " ".join(cells[4].inner_text().split()) if len(cells) > 4 else ""
+            cell_texts = [c.inner_text().strip() for c in cells]
+            unit_value = extract_unit_value(cell_texts[1] if len(cell_texts) > 1 else "")
+            net_assets = extract_net_assets(cell_texts)
 
             results.append({
                 "Fund name": fund_name,
