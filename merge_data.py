@@ -662,12 +662,15 @@ def fund_bucket_order(fund_name: str) -> int:
 
 def discover_latest_files_per_source():
     """
-    Discover latest synchronized Excel snapshot where all providers have data.
+    Discover latest available Excel snapshot per source/provider.
 
     Rules:
     - Parse all provider source files from both naming styles.
-    - Compute latest date present for every provider in PROVIDER_ORDER.
-    - Return files only for that date, so partial provider uploads do not advance reports.
+    - For each source file prefix, pick the newest available date.
+    - Require at least one source per provider in PROVIDER_ORDER.
+
+    This allows scheduled runs to publish newly available provider data
+    without waiting for every provider to share the exact same date.
     """
     candidates = []
     for path in Path(".").glob("*.xlsx"):
@@ -682,8 +685,7 @@ def discover_latest_files_per_source():
 
     # source -> {date_str -> best_file_for_that_source_and_date}
     files_by_source_and_date = {}
-    # institution -> set(date_str)
-    dates_by_institution = {}
+    institutions_present = set()
 
     for path in candidates:
         source_name, file_date = parse_source_and_date(path.name)
@@ -692,36 +694,22 @@ def discover_latest_files_per_source():
 
         institution = institution_from_source(source_name)
         files_by_source_and_date.setdefault(source_name, {})
-        dates_by_institution.setdefault(institution, set()).add(file_date)
+        institutions_present.add(institution)
 
         existing = files_by_source_and_date[source_name].get(file_date)
         if existing is None or path.stat().st_mtime > existing.stat().st_mtime:
             files_by_source_and_date[source_name][file_date] = path
 
     required_providers = set(PROVIDER_ORDER)
-    missing_providers = sorted(required_providers - set(dates_by_institution.keys()))
+    missing_providers = sorted(required_providers - institutions_present)
     if missing_providers:
         raise RuntimeError(
             "Missing provider files for: " + ", ".join(missing_providers)
         )
-
-    common_dates = None
-    for provider in PROVIDER_ORDER:
-        provider_dates = dates_by_institution.get(provider, set())
-        common_dates = provider_dates if common_dates is None else (common_dates & provider_dates)
-
-    if not common_dates:
-        raise RuntimeError(
-            "No synchronized date available across all providers yet."
-        )
-
-    selected_date = max(common_dates)
-
     by_source = {}
     for source_name, dated_files in files_by_source_and_date.items():
-        picked = dated_files.get(selected_date)
-        if picked is not None:
-            by_source[source_name] = picked
+        latest_date = max(dated_files.keys())
+        by_source[source_name] = dated_files[latest_date]
 
     selected_institutions = {
         institution_from_source(source_name)
@@ -730,7 +718,7 @@ def discover_latest_files_per_source():
     still_missing = sorted(required_providers - selected_institutions)
     if still_missing:
         raise RuntimeError(
-            "Latest synchronized date is incomplete for providers: " + ", ".join(still_missing)
+            "Latest source selection is incomplete for providers: " + ", ".join(still_missing)
         )
 
     return by_source
