@@ -662,15 +662,14 @@ def fund_bucket_order(fund_name: str) -> int:
 
 def discover_latest_files_per_source():
     """
-    Discover latest available Excel snapshot per source/provider.
+    Discover latest synchronized Excel snapshot where all providers have data.
 
     Rules:
     - Parse all provider source files from both naming styles.
-    - For each source file prefix, pick the newest available date.
-    - Require at least one source per provider in PROVIDER_ORDER.
+    - Compute latest common date present across all providers.
+    - Return files only for that synchronized date.
 
-    This allows scheduled runs to publish newly available provider data
-    without waiting for every provider to share the exact same date.
+    This prevents publishing mixed-date snapshots when some providers are lagging.
     """
     candidates = []
     for path in Path(".").glob("*.xlsx"):
@@ -685,7 +684,8 @@ def discover_latest_files_per_source():
 
     # source -> {date_str -> best_file_for_that_source_and_date}
     files_by_source_and_date = {}
-    institutions_present = set()
+    # institution -> set(date_str)
+    dates_by_institution = {}
 
     for path in candidates:
         source_name, file_date = parse_source_and_date(path.name)
@@ -694,22 +694,34 @@ def discover_latest_files_per_source():
 
         institution = institution_from_source(source_name)
         files_by_source_and_date.setdefault(source_name, {})
-        institutions_present.add(institution)
+        dates_by_institution.setdefault(institution, set()).add(file_date)
 
         existing = files_by_source_and_date[source_name].get(file_date)
         if existing is None or path.stat().st_mtime > existing.stat().st_mtime:
             files_by_source_and_date[source_name][file_date] = path
 
     required_providers = set(PROVIDER_ORDER)
-    missing_providers = sorted(required_providers - institutions_present)
+    missing_providers = sorted(required_providers - set(dates_by_institution.keys()))
     if missing_providers:
         raise RuntimeError(
             "Missing provider files for: " + ", ".join(missing_providers)
         )
+
+    common_dates = None
+    for provider in PROVIDER_ORDER:
+        provider_dates = dates_by_institution.get(provider, set())
+        common_dates = provider_dates if common_dates is None else (common_dates & provider_dates)
+
+    if not common_dates:
+        raise RuntimeError("No synchronized date available across all providers yet.")
+
+    selected_date = max(common_dates)
+
     by_source = {}
     for source_name, dated_files in files_by_source_and_date.items():
-        latest_date = max(dated_files.keys())
-        by_source[source_name] = dated_files[latest_date]
+        picked = dated_files.get(selected_date)
+        if picked is not None:
+            by_source[source_name] = picked
 
     selected_institutions = {
         institution_from_source(source_name)
@@ -718,7 +730,7 @@ def discover_latest_files_per_source():
     still_missing = sorted(required_providers - selected_institutions)
     if still_missing:
         raise RuntimeError(
-            "Latest source selection is incomplete for providers: " + ", ".join(still_missing)
+            "Latest synchronized date is incomplete for providers: " + ", ".join(still_missing)
         )
 
     return by_source
@@ -762,6 +774,22 @@ def main():
     )
     if snapshot_dates:
         print(f"Using synchronized snapshot date: {snapshot_dates[-1]}")
+
+    # Guard against regressions: do not publish a synchronized snapshot
+    # older than what is already published in docs.
+    docs_dir = Path("docs")
+    docs_dir.mkdir(exist_ok=True)
+    existing_reports = collect_report_files(docs_dir)
+    latest_published_date = existing_reports[-1]["date"] if existing_reports else ""
+    selected_snapshot_date = snapshot_dates[-1] if snapshot_dates else ""
+    if latest_published_date and selected_snapshot_date and selected_snapshot_date < latest_published_date:
+        print(
+            "Synchronized snapshot is older than currently published report "
+            f"({selected_snapshot_date} < {latest_published_date}). Skipping publish."
+        )
+        write_index_page(docs_dir)
+        print("✅ Kept existing published report history unchanged.")
+        return
 
     # Read all source files, grouped by institution.
     by_institution = {}
