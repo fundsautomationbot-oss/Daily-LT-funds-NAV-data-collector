@@ -40,6 +40,7 @@ LUMINOR_TABLE_URLS = [
     "https://luminor.lt/lt/pensiju-fondai",
     "https://www.luminor.lt/lt/pensiju-fondai",
 ]
+DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 class LuminorPensionsScraper(BaseScraper):
@@ -52,7 +53,7 @@ class LuminorPensionsScraper(BaseScraper):
         """Initialize browser with Luminor-specific proxy settings."""
         self._current_browser_uses_proxy = use_proxy
 
-        luminor_proxy = os.environ.get("LUMINOR_PROXY_SERVER", "") if use_proxy else ""
+        luminor_proxy = self.resolve_playwright_proxy_server() if use_proxy else ""
 
         os.environ.pop("PLAYWRIGHT_PROXY_SERVER", None)
         os.environ.pop("PLAYWRIGHT_PROXY_USERNAME", None)
@@ -61,8 +62,8 @@ class LuminorPensionsScraper(BaseScraper):
         if luminor_proxy:
             os.environ["PLAYWRIGHT_PROXY_SERVER"] = luminor_proxy
 
-            luminor_user = os.environ.get("LUMINOR_PROXY_USERNAME", "")
-            luminor_pass = os.environ.get("LUMINOR_PROXY_PASSWORD", "")
+            luminor_user = self.resolve_proxy_username()
+            luminor_pass = self.resolve_proxy_password()
 
             if luminor_user:
                 os.environ["PLAYWRIGHT_PROXY_USERNAME"] = luminor_user
@@ -120,14 +121,72 @@ class LuminorPensionsScraper(BaseScraper):
 
         return bool(re.match(r"^[A-Za-z0-9.-]+$", value))
 
+    def resolve_proxy_username(self) -> str:
+        username = os.getenv("LUMINOR_PROXY_USERNAME", "").strip().strip("'\"")
+        if username:
+            return username
+
+        proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip().strip("'\"")
+        if "@" in proxy_server and ":" in proxy_server.split("@", 1)[0]:
+            return proxy_server.split("@", 1)[0].split(":", 1)[0]
+
+        raw_parts = proxy_server.split(":")
+        if (
+            len(raw_parts) == 4
+            and self._looks_like_host(raw_parts[0])
+            and raw_parts[1].isdigit()
+        ):
+            return raw_parts[2]
+
+        return ""
+
+    def resolve_proxy_password(self) -> str:
+        password = os.getenv("LUMINOR_PROXY_PASSWORD", "").strip().strip("'\"")
+        if password:
+            return password
+
+        proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip().strip("'\"")
+        if "@" in proxy_server and ":" in proxy_server.split("@", 1)[0]:
+            return proxy_server.split("@", 1)[0].split(":", 1)[1]
+
+        raw_parts = proxy_server.split(":")
+        if (
+            len(raw_parts) == 4
+            and self._looks_like_host(raw_parts[0])
+            and raw_parts[1].isdigit()
+        ):
+            return raw_parts[3]
+
+        return ""
+
+    def resolve_playwright_proxy_server(self) -> str:
+        proxy_url = self.resolve_http_proxy()
+        if not proxy_url:
+            return ""
+
+        parsed = urllib.parse.urlsplit(proxy_url)
+        host = parsed.hostname or ""
+        port = parsed.port
+        if not host or not port:
+            return ""
+
+        scheme = parsed.scheme.lower()
+        if scheme == "socks5h":
+            scheme = "socks5"
+
+        if scheme not in ("http", "https", "socks5"):
+            scheme = "http"
+
+        return f"{scheme}://{host}:{port}"
+
     def resolve_http_proxy(self) -> str:
         proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip().strip("'\"")
 
         if not proxy_server:
             return ""
 
-        username = os.getenv("LUMINOR_PROXY_USERNAME", "").strip().strip("'\"")
-        password = os.getenv("LUMINOR_PROXY_PASSWORD", "").strip().strip("'\"")
+        username = self.resolve_proxy_username()
+        password = self.resolve_proxy_password()
 
         # Support common proxy-cheap raw layout: IP:PORT:USERNAME:PASSWORD
         raw_parts = proxy_server.split(":")
@@ -429,6 +488,20 @@ class LuminorPensionsScraper(BaseScraper):
 
         return self._strip_html(cell_html)
 
+    def latest_existing_output_file(self) -> str:
+        candidates = []
+        for path in Path(".").glob("luminor_pensions_data_*.xlsx"):
+            match = DATE_RE.search(path.name)
+            if not match:
+                continue
+            candidates.append((match.group(1), path))
+
+        if not candidates:
+            return ""
+
+        candidates.sort(key=lambda item: item[0])
+        return str(candidates[-1][1])
+
     def parse_rows_from_table_html(self, table_html: str) -> list:
         rows = []
         row_blocks = re.findall(r"<tr\b[^>]*>(.*?)</tr>", table_html, flags=re.IGNORECASE | re.DOTALL)
@@ -586,6 +659,7 @@ class LuminorPensionsScraper(BaseScraper):
             rows = []
             blocked_fund_ids = []
             cloudflare_fund_ids = []
+            table_blocked = False
             used_browser_fallback = False
             payload_missing_ids = []
             proxy_bypass_ids = []
@@ -614,13 +688,21 @@ class LuminorPensionsScraper(BaseScraper):
                 except Exception as exc:
                     last_table_error = exc
                     print(f"Table attempt {attempt_name} failed: {exc}")
+                    if "Cloudflare" in str(exc) or "HTTP 403" in str(exc):
+                        table_blocked = True
 
             if not rows and last_table_error:
                 print(f"Table scrape path failed, falling back to payload path: {last_table_error}")
 
             for fund_id in ([] if rows else LUMINOR_II_FUND_IDS):
                 try:
-                    payload = self.fetch_payload_via_curl(fund_id, use_proxy=True)
+                    payload = {}
+
+                    try:
+                        payload = self.fetch_payload_via_curl(fund_id, use_proxy=True)
+                    except Exception as proxy_payload_exc:
+                        print(f"Proxy payload attempt failed fund {fund_id}: {proxy_payload_exc}")
+
                     if not payload:
                         payload = self.fetch_payload_via_curl(fund_id, use_proxy=False)
                         if payload:
@@ -722,6 +804,20 @@ class LuminorPensionsScraper(BaseScraper):
             df = pd.DataFrame(rows)
 
             if df.empty:
+                allow_stale = os.getenv("LUMINOR_ALLOW_STALE_ON_BLOCK", "false").strip().lower() in (
+                    "1",
+                    "true",
+                    "yes",
+                )
+                fully_blocked = table_blocked or len(set(cloudflare_fund_ids)) >= len(LUMINOR_II_FUND_IDS)
+                if allow_stale and fully_blocked:
+                    stale_file = self.latest_existing_output_file()
+                    if stale_file:
+                        print(
+                            "No fresh Luminor data (Cloudflare/proxy block). "
+                            f"Using last successful file: {stale_file}"
+                        )
+                        return stale_file
                 print("No data parsed.")
                 return None
 

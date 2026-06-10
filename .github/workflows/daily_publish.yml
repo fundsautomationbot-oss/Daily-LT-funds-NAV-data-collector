@@ -78,6 +78,7 @@ jobs:
           LUMINOR_PROXY_PASSWORD: ${{ secrets.LUMINOR_PROXY_PASSWORD }}
 
           LUMINOR_BROWSER_RETRIES: '6'
+          LUMINOR_ALLOW_STALE_ON_BLOCK: 'true'
         run: |
           ./.venv/bin/python run_daily_pipeline.py || python run_daily_pipeline.py
 
