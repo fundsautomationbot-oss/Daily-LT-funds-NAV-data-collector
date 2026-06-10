@@ -242,7 +242,7 @@ class LuminorPensionsScraper(BaseScraper):
         raise last_error
 
     def extract_payload(self, html: str) -> dict:
-        key_match = re.search(r'"dnbPensionFunds"\s*:', html)
+        key_match = re.search(r"(?:['\"])?dnbPensionFunds(?:['\"])?\s*:", html)
         if not key_match:
             return {}
 
