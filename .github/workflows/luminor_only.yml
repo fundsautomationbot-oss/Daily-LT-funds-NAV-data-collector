@@ -33,7 +33,7 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
-        - name: Debug proxy and network reachability
+      - name: Debug proxy and network reachability
         continue-on-error: true
         run: |
           python - <<'PY'
