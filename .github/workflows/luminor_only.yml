@@ -83,9 +83,15 @@ jobs:
             )
             try:
               with opener.open(req, timeout=30) as r:
-                body = r.read(2000).decode("utf-8", "ignore")
-                has_payload = '"dnbPensionFunds"' in body
-                return f"HTTP {r.status}, payload_hint={has_payload}"
+                body = r.read().decode("utf-8", "ignore")
+                has_payload = ('"dnbPensionFunds"' in body) or ('dnbPensionFunds:' in body)
+                cf_hint = (
+                  ("Checking your browser before accessing" in body)
+                  or ("Just a moment..." in body)
+                  or ("Cloudflare Ray ID" in body)
+                  or ("cf-chl-" in body)
+                )
+                return f"HTTP {r.status}, payload_hint={has_payload}, cloudflare_hint={cf_hint}"
             except urllib.error.HTTPError as e:
               return f"HTTPError {e.code}"
             except Exception as e:
@@ -110,9 +116,15 @@ jobs:
               res = subprocess.run(cmd, capture_output=True, text=True, timeout=40, check=False)
               if res.returncode != 0:
                 return f"curl_error code={res.returncode}"
-              body = res.stdout[:2000]
-              has_payload = '"dnbPensionFunds"' in body
-              return f"curl_ok payload_hint={has_payload}"
+              body = res.stdout
+              has_payload = ('"dnbPensionFunds"' in body) or ('dnbPensionFunds:' in body)
+              cf_hint = (
+                ("Checking your browser before accessing" in body)
+                or ("Just a moment..." in body)
+                or ("Cloudflare Ray ID" in body)
+                or ("cf-chl-" in body)
+              )
+              return f"curl_ok payload_hint={has_payload} cloudflare_hint={cf_hint}"
             except Exception as e:
               return f"curl_error {e}"
 

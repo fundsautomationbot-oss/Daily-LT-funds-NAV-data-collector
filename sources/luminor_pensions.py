@@ -151,6 +151,20 @@ class LuminorPensionsScraper(BaseScraper):
         )
         return any(marker in error_message for marker in retryable_markers)
 
+    def is_cloudflare_challenge(self, html: str) -> bool:
+        if not html:
+            return False
+
+        markers = (
+            "Checking your browser before accessing",
+            "Just a moment...",
+            "cf-chl-",
+            "__cf_bm",
+            "Cloudflare Ray ID",
+            "Attention Required! | Cloudflare",
+        )
+        return any(marker in html for marker in markers)
+
     # ✅ ✅ UPDATED: proxy-enabled urllib
     def fetch_html(self, fund_id: str, use_proxy: bool = True) -> str:
         last_error = None
@@ -203,6 +217,7 @@ class LuminorPensionsScraper(BaseScraper):
                 "-sS",
                 "-L",
                 "--compressed",
+                "--http1.1",
                 "--max-time",
                 "45",
                 "-A",
@@ -211,6 +226,10 @@ class LuminorPensionsScraper(BaseScraper):
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
                     "Chrome/124.0.0.0 Safari/537.36"
                 ),
+                "-H",
+                "Accept-Language: lt-LT,lt;q=0.9,en-US;q=0.8,en;q=0.7",
+                "-H",
+                f"Referer: {base_url}",
             ]
 
             if proxy_url:
@@ -237,6 +256,12 @@ class LuminorPensionsScraper(BaseScraper):
             payload = self.extract_payload(result.stdout)
             if payload:
                 return payload
+
+            if self.is_cloudflare_challenge(result.stdout):
+                last_error = RuntimeError(
+                    "Cloudflare challenge page returned by curl"
+                    + (" (via proxy)" if proxy_url else " (direct)")
+                )
 
         if last_error:
             raise last_error
@@ -380,6 +405,7 @@ class LuminorPensionsScraper(BaseScraper):
         try:
             rows = []
             blocked_fund_ids = []
+            cloudflare_fund_ids = []
             used_browser_fallback = False
             payload_missing_ids = []
             proxy_bypass_ids = []
@@ -399,6 +425,8 @@ class LuminorPensionsScraper(BaseScraper):
                         continue
 
                     html = self.fetch_html(fund_id)
+                    if self.is_cloudflare_challenge(html):
+                        cloudflare_fund_ids.append(fund_id)
                     payload = self.extract_payload(html)
 
                     if not payload:
@@ -463,6 +491,8 @@ class LuminorPensionsScraper(BaseScraper):
                     print(f"Failed fund {fund_id}: {exc}")
 
                 except Exception as exc:
+                    if "Cloudflare challenge" in str(exc):
+                        cloudflare_fund_ids.append(fund_id)
                     print(f"Failed fund {fund_id}: {exc}")
 
             print(f"Parsed {len(rows)} funds from server payload")
@@ -477,6 +507,9 @@ class LuminorPensionsScraper(BaseScraper):
                 print("Recovered funds by bypassing proxy on IDs: " + ", ".join(proxy_bypass_ids))
             if blocked_fund_ids:
                 print("HTTP 403 on fund IDs: " + ", ".join(blocked_fund_ids))
+            if cloudflare_fund_ids:
+                unique_cf_ids = sorted(set(cloudflare_fund_ids), key=lambda x: int(x))
+                print("Cloudflare challenge detected on IDs: " + ", ".join(unique_cf_ids))
 
             df = pd.DataFrame(rows)
 
