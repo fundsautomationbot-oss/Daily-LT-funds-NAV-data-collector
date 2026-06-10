@@ -9,6 +9,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -17,10 +18,6 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from base_scraper import BaseScraper
-
-
-# ✅ ✅ ADDED: read proxy from env
-PROXY = os.getenv("LUMINOR_HTTP_PROXY", "")
 
 
 EXCLUDED_FUNDS = {
@@ -69,6 +66,34 @@ class LuminorPensionsScraper(BaseScraper):
     def build_url(self, base_url: str, fund_id: str) -> str:
         return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
 
+    def resolve_http_proxy(self) -> str:
+        explicit_proxy = os.getenv("LUMINOR_HTTP_PROXY", "").strip()
+        if explicit_proxy:
+            return explicit_proxy
+
+        proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip()
+        if not proxy_server:
+            return ""
+
+        if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", proxy_server):
+            proxy_server = f"http://{proxy_server}"
+
+        username = os.getenv("LUMINOR_PROXY_USERNAME", "").strip()
+        password = os.getenv("LUMINOR_PROXY_PASSWORD", "").strip()
+        if not username:
+            return proxy_server
+
+        parsed = urllib.parse.urlsplit(proxy_server)
+        if "@" in parsed.netloc:
+            return proxy_server
+
+        auth = urllib.parse.quote(username, safe="")
+        if password:
+            auth += ":" + urllib.parse.quote(password, safe="")
+
+        netloc = f"{auth}@{parsed.netloc}"
+        return urllib.parse.urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
     def is_retryable_browser_error(self, error_message: str) -> bool:
         retryable_markers = (
             "chrome-error://chromewebdata",
@@ -84,6 +109,7 @@ class LuminorPensionsScraper(BaseScraper):
     # ✅ ✅ UPDATED: proxy-enabled urllib
     def fetch_html(self, fund_id: str) -> str:
         last_error = None
+        proxy_url = self.resolve_http_proxy()
 
         for base_url in LUMINOR_BASE_URLS:
             url = self.build_url(base_url, fund_id)
@@ -101,10 +127,10 @@ class LuminorPensionsScraper(BaseScraper):
 
             try:
                 # ✅ ✅ PROXY LOGIC
-                if PROXY:
+                if proxy_url:
                     proxy_handler = urllib.request.ProxyHandler({
-                        "http": PROXY,
-                        "https": PROXY,
+                        "http": proxy_url,
+                        "https": proxy_url,
                     })
                     opener = urllib.request.build_opener(proxy_handler)
                 else:
