@@ -88,7 +88,28 @@ class LuminorPensionsScraper(BaseScraper):
         return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
 
     def build_table_url(self, base_url: str) -> str:
-        return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund=15"
+        return base_url
+
+    def _accept_cookies_if_visible(self) -> None:
+        if not self.page:
+            return
+
+        cookie_selectors = [
+            "button:has-text('PRIIMTI VISUS')",
+            "button:has-text('Priimti visus')",
+            "button:has-text('Accept all')",
+            "#onetrust-accept-btn-handler",
+        ]
+
+        for selector in cookie_selectors:
+            try:
+                button = self.page.locator(selector).first
+                if button.count() and button.is_visible(timeout=800):
+                    button.click(timeout=1500)
+                    self.page.wait_for_timeout(400)
+                    return
+            except Exception:
+                continue
 
     def _looks_like_host(self, value: str) -> bool:
         try:
@@ -280,62 +301,104 @@ class LuminorPensionsScraper(BaseScraper):
         last_error = None
 
         for base_url in LUMINOR_TABLE_URLS:
-            url = self.build_table_url(base_url)
-            command = [
-                "curl",
-                "-sS",
-                "-L",
-                "--compressed",
-                "--http1.1",
-                "--max-time",
-                "45",
-                "-A",
-                (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                ),
-                "-H",
-                "Accept-Language: lt-LT,lt;q=0.9,en-US;q=0.8,en;q=0.7",
-                "-H",
-                f"Referer: {base_url}",
-                url,
-            ]
+            for url in (
+                self.build_table_url(base_url),
+                f"{base_url}?fund_type=pension&currency=eur&period=3year&fund=15",
+            ):
+                command = [
+                    "curl",
+                    "-sS",
+                    "-L",
+                    "--compressed",
+                    "--http1.1",
+                    "--max-time",
+                    "45",
+                    "-A",
+                    (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"
+                    ),
+                    "-H",
+                    "Accept-Language: lt-LT,lt;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "-H",
+                    f"Referer: {base_url}",
+                    url,
+                ]
 
-            if proxy_url:
-                command[1:1] = ["--proxy", proxy_url]
+                if proxy_url:
+                    command[1:1] = ["--proxy", proxy_url]
 
-            try:
-                result = subprocess.run(
-                    command,
-                    capture_output=True,
-                    text=True,
-                    timeout=55,
-                    check=False,
-                )
-            except Exception as exc:
-                last_error = exc
-                continue
+                try:
+                    result = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=True,
+                        timeout=55,
+                        check=False,
+                    )
+                except Exception as exc:
+                    last_error = exc
+                    continue
 
-            if result.returncode != 0:
-                last_error = RuntimeError(result.stderr.strip() or f"curl failed with code {result.returncode}")
-                continue
+                if result.returncode != 0:
+                    last_error = RuntimeError(result.stderr.strip() or f"curl failed with code {result.returncode}")
+                    continue
 
-            if self.is_cloudflare_challenge(result.stdout):
-                last_error = RuntimeError(
-                    "Cloudflare challenge page returned by curl"
-                    + (" (via proxy)" if proxy_url else " (direct)")
-                )
-                continue
+                if self.is_cloudflare_challenge(result.stdout):
+                    last_error = RuntimeError(
+                        "Cloudflare challenge page returned by curl"
+                        + (" (via proxy)" if proxy_url else " (direct)")
+                    )
+                    continue
 
-            if "data-label=\"Fondas\"" in result.stdout or "data-label='Fondas'" in result.stdout:
-                return result.stdout
+                if "data-label=\"Fondas\"" in result.stdout or "data-label='Fondas'" in result.stdout:
+                    return result.stdout
 
-            last_error = RuntimeError("Table rows not found in pensiju-fondai response")
+                last_error = RuntimeError("Table rows not found in pensiju-fondai response")
 
         if last_error:
             raise last_error
         return ""
+
+    def fetch_table_html_via_browser_navigation(self, use_proxy: bool = True) -> str:
+        self.ensure_browser_mode(use_proxy=use_proxy)
+
+        if not self.page:
+            raise RuntimeError("Browser page is not initialized")
+
+        last_error = None
+
+        for base_url in LUMINOR_TABLE_URLS:
+            try:
+                try:
+                    homepage = base_url.split("/lt/pensiju-fondai", 1)[0]
+                    self.page.goto(homepage + "/lt", wait_until="domcontentloaded", timeout=30000)
+                    self._accept_cookies_if_visible()
+                    self.page.wait_for_timeout(800)
+                except Exception:
+                    pass
+
+                response = self.page.goto(base_url, wait_until="domcontentloaded", timeout=90000)
+                self._accept_cookies_if_visible()
+
+                if response and response.status >= 400:
+                    raise RuntimeError(f"HTTP {response.status}")
+
+                self.page.wait_for_timeout(1500)
+                html_content = self.page.content()
+
+                if self.is_cloudflare_challenge(html_content):
+                    raise RuntimeError("Cloudflare challenge page returned by browser")
+
+                if "data-label=\"Fondas\"" in html_content or "data-label='Fondas'" in html_content:
+                    return html_content
+
+                raise RuntimeError("Table rows not found in browser response")
+            except Exception as exc:
+                last_error = exc
+
+        raise last_error
 
     def _strip_html(self, value: str) -> str:
         clean = re.sub(r"<[^>]+>", " ", value)
@@ -389,27 +452,6 @@ class LuminorPensionsScraper(BaseScraper):
 
         last_error = None
 
-        def accept_cookies_if_visible() -> None:
-            if not self.page:
-                return
-
-            cookie_selectors = [
-                "button:has-text('PRIIMTI VISUS')",
-                "button:has-text('Priimti visus')",
-                "button:has-text('Accept all')",
-                "#onetrust-accept-btn-handler",
-            ]
-
-            for selector in cookie_selectors:
-                try:
-                    button = self.page.locator(selector).first
-                    if button.count() and button.is_visible(timeout=800):
-                        button.click(timeout=1500)
-                        self.page.wait_for_timeout(400)
-                        return
-                except Exception:
-                    continue
-
         for base_url in LUMINOR_BASE_URLS:
             url = self.build_url(base_url, fund_id)
 
@@ -417,13 +459,13 @@ class LuminorPensionsScraper(BaseScraper):
                 try:
                     homepage = base_url.split("/lt/rinkis-fonda", 1)[0]
                     self.page.goto(homepage + "/lt", wait_until="domcontentloaded", timeout=30000)
-                    accept_cookies_if_visible()
+                    self._accept_cookies_if_visible()
                     self.page.wait_for_timeout(800)
                 except Exception:
                     pass
 
                 response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
-                accept_cookies_if_visible()
+                self._accept_cookies_if_visible()
 
                 if response and response.status >= 400:
                     raise RuntimeError(f"HTTP {response.status}")
@@ -530,6 +572,16 @@ class LuminorPensionsScraper(BaseScraper):
 
                 if not rows:
                     table_html = self.fetch_table_html_via_curl(use_proxy=False)
+                    rows = self.parse_rows_from_table_html(table_html)
+                    if rows:
+                        proxy_bypass_ids = LUMINOR_II_FUND_IDS.copy()
+
+                if not rows:
+                    table_html = self.fetch_table_html_via_browser_navigation(use_proxy=True)
+                    rows = self.parse_rows_from_table_html(table_html)
+
+                if not rows:
+                    table_html = self.fetch_table_html_via_browser_navigation(use_proxy=False)
                     rows = self.parse_rows_from_table_html(table_html)
                     if rows:
                         proxy_bypass_ids = LUMINOR_II_FUND_IDS.copy()
