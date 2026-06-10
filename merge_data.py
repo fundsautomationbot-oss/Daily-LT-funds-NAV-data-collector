@@ -559,7 +559,7 @@ def format_report_index(reports, trigger_api_url):
         "    }\n"
         "  }\n"
         "\n"
-        "  const sorted = deviceReports();\n"
+        "  const sorted = getGlobalSortedReports();\n"
         "  sorted.forEach(function(report){\n"
         "    const option = document.createElement('option');\n"
         "    option.value = report.date;\n"

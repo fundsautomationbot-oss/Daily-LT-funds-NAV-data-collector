@@ -380,7 +380,7 @@ function initIndex() {
     }
   }
 
-  const sorted = deviceReports();
+  const sorted = getGlobalSortedReports();
   sorted.forEach(function(report){
     const option = document.createElement('option');
     option.value = report.date;
