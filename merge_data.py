@@ -743,19 +743,13 @@ def main():
         existing_reports = collect_report_files(docs_dir)
 
         if existing_reports:
-            # Keep workflow successful and keep existing published complete report
+            # Keep workflow successful and preserve all already published reports
             # when fresh provider files are temporarily out-of-sync.
             print(f"Warning: {exc}")
-            complete_dates = discover_complete_snapshot_dates()
-            if complete_dates:
-                visible_reports = collect_report_files(docs_dir, allowed_dates=complete_dates)
-            else:
-                visible_reports = collect_report_files(docs_dir, max_date=discover_provider_floor_date())
-
-            latest_existing = visible_reports[-1]["date"] if visible_reports else existing_reports[-1]["date"]
+            latest_existing = existing_reports[-1]["date"]
             print(f"No synchronized snapshot available yet. Keeping published report date: {latest_existing}")
             write_index_page(docs_dir)
-            print("✅ Index page refreshed using existing complete reports.")
+            print("✅ Index page refreshed while preserving existing published reports.")
             return
 
         raise
