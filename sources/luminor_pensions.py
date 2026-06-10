@@ -81,11 +81,13 @@ class LuminorPensionsScraper(BaseScraper):
         return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
 
     def resolve_http_proxy(self) -> str:
+        proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip()
         explicit_proxy = os.getenv("LUMINOR_HTTP_PROXY", "").strip()
-        if explicit_proxy:
+
+        # Prefer server+credentials when provided to avoid drift between secrets.
+        if not proxy_server and explicit_proxy:
             return explicit_proxy
 
-        proxy_server = os.getenv("LUMINOR_PROXY_SERVER", "").strip()
         if not proxy_server:
             return ""
 
