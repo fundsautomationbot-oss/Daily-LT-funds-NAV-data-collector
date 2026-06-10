@@ -38,6 +38,7 @@ jobs:
           python - <<'PY'
           import os
           import re
+          import subprocess
           import urllib.parse
           import urllib.error
           import urllib.request
@@ -90,9 +91,35 @@ jobs:
             except Exception as e:
               return f"error: {e}"
 
+          def check_status_curl(url, proxy_url=""):
+            cmd = [
+              "curl",
+              "-sS",
+              "-L",
+              "--compressed",
+              "--max-time",
+              "30",
+              "-A",
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            ]
+            if proxy_url:
+              cmd.extend(["--proxy", proxy_url])
+            cmd.append(url)
+
+            try:
+              res = subprocess.run(cmd, capture_output=True, text=True, timeout=40, check=False)
+              if res.returncode != 0:
+                return f"curl_error code={res.returncode}"
+              body = res.stdout[:2000]
+              has_payload = '"dnbPensionFunds"' in body
+              return f"curl_ok payload_hint={has_payload}"
+            except Exception as e:
+              return f"curl_error {e}"
+
           direct = urllib.request.build_opener()
           print("Direct IP:", get_ip(direct))
           print("Direct Luminor:", check_status(direct, TEST_URL))
+          print("Direct Luminor (curl):", check_status_curl(TEST_URL))
 
           if proxy:
             proxied = urllib.request.build_opener(
@@ -101,6 +128,7 @@ jobs:
             print("Proxy configured: yes")
             print("Proxy IP:", get_ip(proxied))
             print("Proxy Luminor:", check_status(proxied, TEST_URL))
+            print("Proxy Luminor (curl):", check_status_curl(TEST_URL, proxy))
           else:
             print("Proxy configured: no (LUMINOR_PROXY_SERVER empty)")
           PY
