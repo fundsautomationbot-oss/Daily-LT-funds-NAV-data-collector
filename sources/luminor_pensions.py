@@ -287,6 +287,21 @@ class LuminorPensionsScraper(BaseScraper):
 
                 except urllib.error.HTTPError as exc:
                     if exc.code == 403:
+                        try:
+                            if not self.page:
+                                self.setup_browser()
+
+                            html = self.fetch_html_via_browser_navigation(fund_id)
+                            payload = self.extract_payload(html)
+                            if payload:
+                                row = self.build_row(payload)
+                                if row:
+                                    rows.append(row)
+                                    used_browser_fallback = True
+                                    continue
+                        except Exception as browser_exc:
+                            print(f"Browser fallback failed fund {fund_id}: {browser_exc}")
+
                         blocked_fund_ids.append(fund_id)
                         continue
 
