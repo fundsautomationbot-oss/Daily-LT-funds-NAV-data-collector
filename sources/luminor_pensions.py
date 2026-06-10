@@ -39,10 +39,17 @@ class LuminorPensionsScraper(BaseScraper):
 
     def __init__(self):
         super().__init__("luminor_pensions")
+        self._current_browser_uses_proxy = None
 
-    def setup_browser(self):
+    def setup_browser(self, use_proxy: bool = True):
         """Initialize browser with Luminor-specific proxy settings."""
-        luminor_proxy = os.environ.get("LUMINOR_PROXY_SERVER", "")
+        self._current_browser_uses_proxy = use_proxy
+
+        luminor_proxy = os.environ.get("LUMINOR_PROXY_SERVER", "") if use_proxy else ""
+
+        os.environ.pop("PLAYWRIGHT_PROXY_SERVER", None)
+        os.environ.pop("PLAYWRIGHT_PROXY_USERNAME", None)
+        os.environ.pop("PLAYWRIGHT_PROXY_PASSWORD", None)
 
         if luminor_proxy:
             os.environ["PLAYWRIGHT_PROXY_SERVER"] = luminor_proxy
@@ -56,6 +63,13 @@ class LuminorPensionsScraper(BaseScraper):
                 os.environ["PLAYWRIGHT_PROXY_PASSWORD"] = luminor_pass
 
         return super().setup_browser()
+
+    def ensure_browser_mode(self, use_proxy: bool):
+        if self.page and self._current_browser_uses_proxy == use_proxy:
+            return
+
+        self.cleanup_browser()
+        self.setup_browser(use_proxy=use_proxy)
 
     def get_url(self) -> str:
         return LUMINOR_BASE_URLS[0]
@@ -107,9 +121,9 @@ class LuminorPensionsScraper(BaseScraper):
         return any(marker in error_message for marker in retryable_markers)
 
     # ✅ ✅ UPDATED: proxy-enabled urllib
-    def fetch_html(self, fund_id: str) -> str:
+    def fetch_html(self, fund_id: str, use_proxy: bool = True) -> str:
         last_error = None
-        proxy_url = self.resolve_http_proxy()
+        proxy_url = self.resolve_http_proxy() if use_proxy else ""
 
         for base_url in LUMINOR_BASE_URLS:
             url = self.build_url(base_url, fund_id)
@@ -147,7 +161,9 @@ class LuminorPensionsScraper(BaseScraper):
 
         raise last_error
 
-    def fetch_html_via_browser_navigation(self, fund_id: str) -> str:
+    def fetch_html_via_browser_navigation(self, fund_id: str, use_proxy: bool = True) -> str:
+        self.ensure_browser_mode(use_proxy=use_proxy)
+
         if not self.page:
             raise RuntimeError("Browser page is not initialized")
 
@@ -262,6 +278,7 @@ class LuminorPensionsScraper(BaseScraper):
             blocked_fund_ids = []
             used_browser_fallback = False
             payload_missing_ids = []
+            proxy_bypass_ids = []
 
             for fund_id in LUMINOR_II_FUND_IDS:
                 try:
@@ -288,10 +305,19 @@ class LuminorPensionsScraper(BaseScraper):
                 except urllib.error.HTTPError as exc:
                     if exc.code == 403:
                         try:
-                            if not self.page:
-                                self.setup_browser()
+                            html = self.fetch_html(fund_id, use_proxy=False)
+                            payload = self.extract_payload(html)
+                            if payload:
+                                row = self.build_row(payload)
+                                if row:
+                                    rows.append(row)
+                                    proxy_bypass_ids.append(fund_id)
+                                    continue
+                        except Exception:
+                            pass
 
-                            html = self.fetch_html_via_browser_navigation(fund_id)
+                        try:
+                            html = self.fetch_html_via_browser_navigation(fund_id, use_proxy=True)
                             payload = self.extract_payload(html)
                             if payload:
                                 row = self.build_row(payload)
@@ -301,6 +327,19 @@ class LuminorPensionsScraper(BaseScraper):
                                     continue
                         except Exception as browser_exc:
                             print(f"Browser fallback failed fund {fund_id}: {browser_exc}")
+
+                        try:
+                            html = self.fetch_html_via_browser_navigation(fund_id, use_proxy=False)
+                            payload = self.extract_payload(html)
+                            if payload:
+                                row = self.build_row(payload)
+                                if row:
+                                    rows.append(row)
+                                    used_browser_fallback = True
+                                    proxy_bypass_ids.append(fund_id)
+                                    continue
+                        except Exception as browser_no_proxy_exc:
+                            print(f"Browser no-proxy fallback failed fund {fund_id}: {browser_no_proxy_exc}")
 
                         blocked_fund_ids.append(fund_id)
                         continue
@@ -318,6 +357,8 @@ class LuminorPensionsScraper(BaseScraper):
                 )
             if used_browser_fallback:
                 print("Recovered some funds using browser navigation fallback")
+            if proxy_bypass_ids:
+                print("Recovered funds by bypassing proxy on IDs: " + ", ".join(proxy_bypass_ids))
             if blocked_fund_ids:
                 print("HTTP 403 on fund IDs: " + ", ".join(blocked_fund_ids))
 
