@@ -590,30 +590,33 @@ class LuminorPensionsScraper(BaseScraper):
             payload_missing_ids = []
             proxy_bypass_ids = []
 
-            try:
-                table_html = self.fetch_table_html_via_curl(use_proxy=True)
-                rows = self.parse_rows_from_table_html(table_html)
+            table_attempts = [
+                ("curl via proxy", lambda: self.fetch_table_html_via_curl(use_proxy=True), True),
+                ("curl direct", lambda: self.fetch_table_html_via_curl(use_proxy=False), False),
+                ("browser via proxy", lambda: self.fetch_table_html_via_browser_navigation(use_proxy=True), True),
+                ("browser direct", lambda: self.fetch_table_html_via_browser_navigation(use_proxy=False), False),
+            ]
 
-                if not rows:
-                    table_html = self.fetch_table_html_via_curl(use_proxy=False)
-                    rows = self.parse_rows_from_table_html(table_html)
-                    if rows:
+            last_table_error = None
+            for attempt_name, fetch_fn, used_proxy in table_attempts:
+                try:
+                    table_html = fetch_fn()
+                    parsed_rows = self.parse_rows_from_table_html(table_html)
+                    if not parsed_rows:
+                        print(f"Table attempt {attempt_name} returned no parsable rows")
+                        continue
+
+                    rows = parsed_rows
+                    if not used_proxy:
                         proxy_bypass_ids = LUMINOR_II_FUND_IDS.copy()
+                    print(f"Parsed {len(rows)} funds from pensiju-fondai table ({attempt_name})")
+                    break
+                except Exception as exc:
+                    last_table_error = exc
+                    print(f"Table attempt {attempt_name} failed: {exc}")
 
-                if not rows:
-                    table_html = self.fetch_table_html_via_browser_navigation(use_proxy=True)
-                    rows = self.parse_rows_from_table_html(table_html)
-
-                if not rows:
-                    table_html = self.fetch_table_html_via_browser_navigation(use_proxy=False)
-                    rows = self.parse_rows_from_table_html(table_html)
-                    if rows:
-                        proxy_bypass_ids = LUMINOR_II_FUND_IDS.copy()
-
-                if rows:
-                    print(f"Parsed {len(rows)} funds from pensiju-fondai table")
-            except Exception as table_exc:
-                print(f"Table scrape path failed, falling back to payload path: {table_exc}")
+            if not rows and last_table_error:
+                print(f"Table scrape path failed, falling back to payload path: {last_table_error}")
 
             for fund_id in ([] if rows else LUMINOR_II_FUND_IDS):
                 try:
