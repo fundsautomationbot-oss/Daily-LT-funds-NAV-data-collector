@@ -29,6 +29,7 @@ EXCLUDED_FUNDS = {
     "Luminor ateitis 58+",
     "Luminor tvari ateitis index",
     "Luminor ateitis akciju index",
+    "Luminor ateitis akcijų index",
 }
 
 LUMINOR_II_FUND_IDS = ["15", "16", "17", "18", "19", "20", "23", "21"]
