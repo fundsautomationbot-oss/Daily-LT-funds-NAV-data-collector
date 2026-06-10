@@ -47,22 +47,22 @@ jobs:
           TEST_URL = "https://luminor.lt/lt/rinkis-fonda?fund_type=pension&currency=eur&period=3year&fund=15"
           IP_URL = "https://api.ipify.org"
 
-            proxy_server = (os.getenv("LUMINOR_PROXY_SERVER") or "").strip()
-            proxy_user = (os.getenv("LUMINOR_PROXY_USERNAME") or "").strip()
-            proxy_pass = (os.getenv("LUMINOR_PROXY_PASSWORD") or "").strip()
+          proxy_server = (os.getenv("LUMINOR_PROXY_SERVER") or "").strip()
+          proxy_user = (os.getenv("LUMINOR_PROXY_USERNAME") or "").strip()
+          proxy_pass = (os.getenv("LUMINOR_PROXY_PASSWORD") or "").strip()
 
-            proxy = proxy_server
-            if proxy and not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", proxy):
-              proxy = f"http://{proxy}"
+          proxy = proxy_server
+          if proxy and not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", proxy):
+            proxy = f"http://{proxy}"
 
-            if proxy and proxy_user and "@" not in urllib.parse.urlsplit(proxy).netloc:
-              auth = urllib.parse.quote(proxy_user, safe="")
-              if proxy_pass:
-                auth += ":" + urllib.parse.quote(proxy_pass, safe="")
-              parsed = urllib.parse.urlsplit(proxy)
-              proxy = urllib.parse.urlunsplit(
-                (parsed.scheme, f"{auth}@{parsed.netloc}", parsed.path, parsed.query, parsed.fragment)
-              )
+          if proxy and proxy_user and "@" not in urllib.parse.urlsplit(proxy).netloc:
+            auth = urllib.parse.quote(proxy_user, safe="")
+            if proxy_pass:
+              auth += ":" + urllib.parse.quote(proxy_pass, safe="")
+            parsed = urllib.parse.urlsplit(proxy)
+            proxy = urllib.parse.urlunsplit(
+              (parsed.scheme, f"{auth}@{parsed.netloc}", parsed.path, parsed.query, parsed.fragment)
+            )
 
           def get_ip(opener):
             try:
