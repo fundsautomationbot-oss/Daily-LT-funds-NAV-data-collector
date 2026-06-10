@@ -4,6 +4,7 @@ Luminor pension funds scraper.
 Fetches II pillar fund data from server-rendered dnbPensionFunds payload.
 """
 import json
+import html
 import os
 import re
 import subprocess
@@ -34,6 +35,10 @@ LUMINOR_II_FUND_IDS = ["15", "16", "17", "18", "19", "20", "23", "21"]
 LUMINOR_BASE_URLS = [
     "https://luminor.lt/lt/rinkis-fonda",
     "https://www.luminor.lt/lt/rinkis-fonda",
+]
+LUMINOR_TABLE_URLS = [
+    "https://luminor.lt/lt/pensiju-fondai",
+    "https://www.luminor.lt/lt/pensiju-fondai",
 ]
 
 
@@ -81,6 +86,9 @@ class LuminorPensionsScraper(BaseScraper):
 
     def build_url(self, base_url: str, fund_id: str) -> str:
         return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund={fund_id}"
+
+    def build_table_url(self, base_url: str) -> str:
+        return f"{base_url}?fund_type=pension&currency=eur&period=3year&fund=15"
 
     def _looks_like_host(self, value: str) -> bool:
         try:
@@ -267,6 +275,112 @@ class LuminorPensionsScraper(BaseScraper):
             raise last_error
         return {}
 
+    def fetch_table_html_via_curl(self, use_proxy: bool = True) -> str:
+        proxy_url = self.resolve_http_proxy() if use_proxy else ""
+        last_error = None
+
+        for base_url in LUMINOR_TABLE_URLS:
+            url = self.build_table_url(base_url)
+            command = [
+                "curl",
+                "-sS",
+                "-L",
+                "--compressed",
+                "--http1.1",
+                "--max-time",
+                "45",
+                "-A",
+                (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "-H",
+                "Accept-Language: lt-LT,lt;q=0.9,en-US;q=0.8,en;q=0.7",
+                "-H",
+                f"Referer: {base_url}",
+                url,
+            ]
+
+            if proxy_url:
+                command[1:1] = ["--proxy", proxy_url]
+
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=55,
+                    check=False,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+            if result.returncode != 0:
+                last_error = RuntimeError(result.stderr.strip() or f"curl failed with code {result.returncode}")
+                continue
+
+            if self.is_cloudflare_challenge(result.stdout):
+                last_error = RuntimeError(
+                    "Cloudflare challenge page returned by curl"
+                    + (" (via proxy)" if proxy_url else " (direct)")
+                )
+                continue
+
+            if "data-label=\"Fondas\"" in result.stdout or "data-label='Fondas'" in result.stdout:
+                return result.stdout
+
+            last_error = RuntimeError("Table rows not found in pensiju-fondai response")
+
+        if last_error:
+            raise last_error
+        return ""
+
+    def _strip_html(self, value: str) -> str:
+        clean = re.sub(r"<[^>]+>", " ", value)
+        clean = html.unescape(clean)
+        return re.sub(r"\s+", " ", clean).strip()
+
+    def parse_rows_from_table_html(self, table_html: str) -> list:
+        rows = []
+        row_blocks = re.findall(r"<tr\b[^>]*>(.*?)</tr>", table_html, flags=re.IGNORECASE | re.DOTALL)
+
+        for row_html in row_blocks:
+            label_cells = {
+                label.strip(): content
+                for label, content in re.findall(
+                    r'<td\b[^>]*data-label=["\']([^"\']+)["\'][^>]*>(.*?)</td>',
+                    row_html,
+                    flags=re.IGNORECASE | re.DOTALL,
+                )
+            }
+
+            fund_cell = label_cells.get("Fondas", "")
+            unit_cell = label_cells.get("Apskaitos vieneto vertė", "")
+            assets_cell = label_cells.get("Grynųjų aktyvų vertė", "")
+
+            fund_name = self._strip_html(fund_cell)
+            if not fund_name or fund_name in EXCLUDED_FUNDS:
+                continue
+
+            unit_value_text = self._strip_html(unit_cell)
+            assets_text = self._strip_html(assets_cell)
+
+            if not unit_value_text and not assets_text:
+                continue
+
+            rows.append(
+                {
+                    "Fund name": fund_name,
+                    "Data": None,
+                    "Vieneto vertė": unit_value_text,
+                    "Grynieji aktyvai": assets_text,
+                }
+            )
+
+        return rows
+
     def fetch_html_via_browser_navigation(self, fund_id: str, use_proxy: bool = True) -> str:
         self.ensure_browser_mode(use_proxy=use_proxy)
 
@@ -410,7 +524,22 @@ class LuminorPensionsScraper(BaseScraper):
             payload_missing_ids = []
             proxy_bypass_ids = []
 
-            for fund_id in LUMINOR_II_FUND_IDS:
+            try:
+                table_html = self.fetch_table_html_via_curl(use_proxy=True)
+                rows = self.parse_rows_from_table_html(table_html)
+
+                if not rows:
+                    table_html = self.fetch_table_html_via_curl(use_proxy=False)
+                    rows = self.parse_rows_from_table_html(table_html)
+                    if rows:
+                        proxy_bypass_ids = LUMINOR_II_FUND_IDS.copy()
+
+                if rows:
+                    print(f"Parsed {len(rows)} funds from pensiju-fondai table")
+            except Exception as table_exc:
+                print(f"Table scrape path failed, falling back to payload path: {table_exc}")
+
+            for fund_id in ([] if rows else LUMINOR_II_FUND_IDS):
                 try:
                     payload = self.fetch_payload_via_curl(fund_id, use_proxy=True)
                     if not payload:
