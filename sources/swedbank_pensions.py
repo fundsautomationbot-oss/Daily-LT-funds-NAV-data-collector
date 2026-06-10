@@ -27,13 +27,13 @@ class SwedBankPerformanceScraper(BaseScraper):
         if not raw:
             return ""
 
-        # Support YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD.
-        m = re.search(r"(\d{4})[./-](\d{2})[./-](\d{2})", raw)
+        # Support YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD, YYYY MM DD.
+        m = re.search(r"(\d{4})[\s./-](\d{2})[\s./-](\d{2})", raw)
         if m:
             return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
-        # Support DD-MM-YYYY and similar separators.
-        m = re.search(r"(\d{2})[./-](\d{2})[./-](\d{4})", raw)
+        # Support DD-MM-YYYY, DD.MM.YYYY, DD/MM/YYYY, DD MM YYYY.
+        m = re.search(r"(\d{2})[\s./-](\d{2})[\s./-](\d{4})", raw)
         if m:
             return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
 
@@ -47,8 +47,8 @@ class SwedBankPerformanceScraper(BaseScraper):
 
         # Prefer dates that appear near labels like Data/Atnaujinta.
         preferred = [
-            r"(?:Data|Atnaujinta|Paskutin(?:is|ė)\s+atnaujinimas)\D{0,30}(\d{4}[./-]\d{2}[./-]\d{2})",
-            r"(?:Data|Atnaujinta|Paskutin(?:is|ė)\s+atnaujinimas)\D{0,30}(\d{2}[./-]\d{2}[./-]\d{4})",
+            r"(?:Data|Atnaujinta|Paskutin(?:is|ė)\s+atnaujinimas)\D{0,40}(\d{4}[\s./-]\d{2}[\s./-]\d{2})",
+            r"(?:Data|Atnaujinta|Paskutin(?:is|ė)\s+atnaujinimas)\D{0,40}(\d{2}[\s./-]\d{2}[\s./-]\d{4})",
         ]
         for pattern in preferred:
             match = re.search(pattern, body_text, flags=re.IGNORECASE)
@@ -57,7 +57,7 @@ class SwedBankPerformanceScraper(BaseScraper):
                 if normalized:
                     return normalized
 
-        fallback = re.search(r"(\d{4}[./-]\d{2}[./-]\d{2})", body_text)
+        fallback = re.search(r"(\d{4}[\s./-]\d{2}[\s./-]\d{2})", body_text)
         if fallback:
             return self.normalize_date_text(fallback.group(1))
 
