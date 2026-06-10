@@ -217,6 +217,27 @@ class LuminorPensionsScraper(BaseScraper):
 
         last_error = None
 
+        def accept_cookies_if_visible() -> None:
+            if not self.page:
+                return
+
+            cookie_selectors = [
+                "button:has-text('PRIIMTI VISUS')",
+                "button:has-text('Priimti visus')",
+                "button:has-text('Accept all')",
+                "#onetrust-accept-btn-handler",
+            ]
+
+            for selector in cookie_selectors:
+                try:
+                    button = self.page.locator(selector).first
+                    if button.count() and button.is_visible(timeout=800):
+                        button.click(timeout=1500)
+                        self.page.wait_for_timeout(400)
+                        return
+                except Exception:
+                    continue
+
         for base_url in LUMINOR_BASE_URLS:
             url = self.build_url(base_url, fund_id)
 
@@ -224,11 +245,13 @@ class LuminorPensionsScraper(BaseScraper):
                 try:
                     homepage = base_url.split("/lt/rinkis-fonda", 1)[0]
                     self.page.goto(homepage + "/lt", wait_until="domcontentloaded", timeout=30000)
+                    accept_cookies_if_visible()
                     self.page.wait_for_timeout(800)
                 except Exception:
                     pass
 
                 response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
+                accept_cookies_if_visible()
 
                 if response and response.status >= 400:
                     raise RuntimeError(f"HTTP {response.status}")
