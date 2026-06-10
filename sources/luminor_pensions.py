@@ -112,6 +112,39 @@ class LuminorPensionsScraper(BaseScraper):
             except Exception:
                 continue
 
+    def _debug_capture_browser_state(self, label: str) -> None:
+        if not self.page:
+            return
+
+        debug_enabled = os.getenv("LUMINOR_DEBUG_CAPTURE", "true").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if not debug_enabled:
+            return
+
+        debug_dir = Path(os.getenv("LUMINOR_DEBUG_DIR", "logs/luminor_debug"))
+        debug_dir.mkdir(parents=True, exist_ok=True)
+
+        safe_label = re.sub(r"[^A-Za-z0-9_.-]+", "_", label).strip("_") or "capture"
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+
+        screenshot_path = debug_dir / f"{timestamp}_{safe_label}.png"
+        html_path = debug_dir / f"{timestamp}_{safe_label}.html"
+
+        try:
+            self.page.screenshot(path=str(screenshot_path), full_page=True)
+            print(f"Saved debug screenshot: {screenshot_path}")
+        except Exception as exc:
+            print(f"Failed to save debug screenshot ({safe_label}): {exc}")
+
+        try:
+            html_path.write_text(self.page.content(), encoding="utf-8")
+            print(f"Saved debug HTML: {html_path}")
+        except Exception as exc:
+            print(f"Failed to save debug HTML ({safe_label}): {exc}")
+
     def _looks_like_host(self, value: str) -> bool:
         try:
             ipaddress.ip_address(value)
@@ -459,6 +492,9 @@ class LuminorPensionsScraper(BaseScraper):
 
                 response = self.page.goto(base_url, wait_until="domcontentloaded", timeout=90000)
                 self._accept_cookies_if_visible()
+                self._debug_capture_browser_state(
+                    f"table_{'proxy' if use_proxy else 'direct'}_{urllib.parse.urlsplit(base_url).netloc}"
+                )
 
                 if response and response.status >= 400:
                     raise RuntimeError(f"HTTP {response.status}")
@@ -474,6 +510,9 @@ class LuminorPensionsScraper(BaseScraper):
 
                 raise RuntimeError("Table rows not found in browser response")
             except Exception as exc:
+                self._debug_capture_browser_state(
+                    f"table_error_{'proxy' if use_proxy else 'direct'}_{urllib.parse.urlsplit(base_url).netloc}"
+                )
                 last_error = exc
 
         raise last_error
@@ -587,6 +626,9 @@ class LuminorPensionsScraper(BaseScraper):
 
                 response = self.page.goto(url, wait_until="domcontentloaded", timeout=90000)
                 self._accept_cookies_if_visible()
+                self._debug_capture_browser_state(
+                    f"fund_{fund_id}_{'proxy' if use_proxy else 'direct'}"
+                )
 
                 if response and response.status >= 400:
                     raise RuntimeError(f"HTTP {response.status}")
@@ -595,6 +637,9 @@ class LuminorPensionsScraper(BaseScraper):
                 return self.page.content()
 
             except Exception as exc:
+                self._debug_capture_browser_state(
+                    f"fund_{fund_id}_error_{'proxy' if use_proxy else 'direct'}"
+                )
                 last_error = exc
 
         raise last_error

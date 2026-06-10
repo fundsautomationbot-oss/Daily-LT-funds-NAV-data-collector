@@ -17,6 +17,8 @@ jobs:
       LUMINOR_PROXY_USERNAME: ${{ secrets.LUMINOR_PROXY_USERNAME }}
       LUMINOR_PROXY_PASSWORD: ${{ secrets.LUMINOR_PROXY_PASSWORD }}
       LUMINOR_BROWSER_RETRIES: '6'
+      LUMINOR_DEBUG_CAPTURE: 'true'
+      LUMINOR_DEBUG_DIR: logs/luminor_debug
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -156,4 +158,6 @@ jobs:
           name: luminor-output
           path: |
             luminor_pensions_data_*.xlsx
+            logs/luminor_debug/**/*.png
+            logs/luminor_debug/**/*.html
           if-no-files-found: warn
