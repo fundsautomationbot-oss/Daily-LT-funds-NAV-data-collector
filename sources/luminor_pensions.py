@@ -405,6 +405,30 @@ class LuminorPensionsScraper(BaseScraper):
         clean = html.unescape(clean)
         return re.sub(r"\s+", " ", clean).strip()
 
+    def _extract_fund_name(self, fund_cell_html: str) -> str:
+        anchor_match = re.search(
+            r"<a\b[^>]*href=[\"']?/lt/pensiju-fondu-forma\?fund=\d+[\"']?[^>]*>(.*?)</a>",
+            fund_cell_html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if anchor_match:
+            return self._strip_html(anchor_match.group(1))
+        return self._strip_html(fund_cell_html)
+
+    def _extract_visible_td_value(self, cell_html: str) -> str:
+        # Prefer non-mobile-only div content because that is the actual displayed value.
+        div_matches = re.findall(
+            r"<div\b(?![^>]*mobile-only)[^>]*>(.*?)</div>",
+            cell_html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        for div_html in reversed(div_matches):
+            value = self._strip_html(div_html)
+            if value:
+                return value
+
+        return self._strip_html(cell_html)
+
     def parse_rows_from_table_html(self, table_html: str) -> list:
         rows = []
         row_blocks = re.findall(r"<tr\b[^>]*>(.*?)</tr>", table_html, flags=re.IGNORECASE | re.DOTALL)
@@ -423,12 +447,12 @@ class LuminorPensionsScraper(BaseScraper):
             unit_cell = label_cells.get("Apskaitos vieneto vertė", "")
             assets_cell = label_cells.get("Grynųjų aktyvų vertė", "")
 
-            fund_name = self._strip_html(fund_cell)
+            fund_name = self._extract_fund_name(fund_cell)
             if not fund_name or fund_name in EXCLUDED_FUNDS:
                 continue
 
-            unit_value_text = self._strip_html(unit_cell)
-            assets_text = self._strip_html(assets_cell)
+            unit_value_text = self._extract_visible_td_value(unit_cell)
+            assets_text = self._extract_visible_td_value(assets_cell)
 
             if not unit_value_text and not assets_text:
                 continue
