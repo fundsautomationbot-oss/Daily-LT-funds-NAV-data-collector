@@ -83,34 +83,35 @@
     <!-- ── Date Filter Bar ── -->
     <div class="card p-3 sm:p-4">
       <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">View date</span>
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Dates shown</span>
         <div id="date-filter-bar" class="flex flex-wrap gap-2"></div>
-        <span id="date-filter-label" class="text-xs text-slate-400 sm:ml-auto whitespace-nowrap"></span>
+        <div class="flex gap-2 sm:ml-auto">
+          <button id="date-select-all" class="text-xs text-slate-500 hover:text-slate-800 underline whitespace-nowrap transition">All</button>
+          <button id="date-clear-all" class="text-xs text-slate-500 hover:text-slate-800 underline whitespace-nowrap transition">Clear</button>
+        </div>
       </div>
     </div>
 
-    <!-- ── Row: NAV trends + AUM donut ── -->
-    <div class="grid lg:grid-cols-3 gap-4 sm:gap-6">
-
-      <!-- NAV Trend chart (2/3 width) -->
-      <div class="card p-4 sm:p-6 lg:col-span-2">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-          <div>
-            <h2 class="text-base font-semibold text-slate-900">NAV Trends Over Time</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Unit value (Vieneto vertė) by provider</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-slate-500 whitespace-nowrap">Age bucket:</span>
-            <div id="bucket-tabs" class="flex flex-wrap gap-1.5"></div>
-          </div>
+    <!-- ── NAV Trends (full width) ── -->
+    <div class="card p-4 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900">NAV Trends Over Time</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Unit value (Vieneto vertė) by provider</p>
         </div>
-        <div class="chart-wrap" style="height: 300px">
-          <canvas id="nav-trend-chart"></canvas>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500 whitespace-nowrap">Age bucket:</span>
+          <div id="bucket-tabs" class="flex flex-wrap gap-1.5"></div>
         </div>
-        <div id="nav-legend" class="flex flex-wrap gap-x-4 gap-y-1.5 mt-4"></div>
       </div>
+      <div class="chart-wrap" style="height: 340px">
+        <canvas id="nav-trend-chart"></canvas>
+      </div>
+      <div id="nav-legend" class="flex flex-wrap gap-x-4 gap-y-1.5 mt-4"></div>
+    </div>
 
-      <!-- AUM Donut (1/3 width) -->
+    <!-- ── AUM Donut ── -->
+    <div class="grid lg:grid-cols-3 gap-4 sm:gap-6">
       <div class="card p-4 sm:p-6">
         <h2 class="text-base font-semibold text-slate-900 mb-1">AUM by Provider</h2>
         <p class="text-xs text-slate-400 mb-4" id="aum-donut-subtitle">Latest date — total net assets</p>
@@ -119,69 +120,33 @@
         </div>
         <div id="aum-legend" class="mt-4 space-y-1.5"></div>
       </div>
-    </div>
 
-    <!-- ── Provider Comparison ── -->
-    <div class="card p-4 sm:p-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
-        <div>
-          <h2 class="text-base font-semibold text-slate-900">Cross-Provider NAV Comparison</h2>
-          <p class="text-xs text-slate-400 mt-0.5" id="comparison-subtitle">All age buckets on latest date — grouped by bucket</p>
+      <!-- ── Fund Data Table (spans 2 cols) ── -->
+      <div class="card p-4 sm:p-6 lg:col-span-2">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900" id="table-title">All Funds</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Sorted by provider · NAV and net assets</p>
+          </div>
+          <input id="table-filter" type="text" placeholder="Filter funds…"
+            class="w-full sm:w-64 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition" />
         </div>
-        <div id="provider-toggles" class="flex flex-wrap gap-2"></div>
-      </div>
-      <div class="chart-wrap overflow-x-auto" style="height: 320px">
-        <canvas id="comparison-chart"></canvas>
-      </div>
-    </div>
-
-    <!-- ── AUM Bar + Performance ── -->
-    <div class="grid lg:grid-cols-2 gap-4 sm:gap-6">
-
-      <!-- AUM by Provider bar -->
-      <div class="card p-4 sm:p-6">
-        <h2 class="text-base font-semibold text-slate-900 mb-1">Total AUM by Provider</h2>
-        <p class="text-xs text-slate-400 mb-4" id="aum-bar-subtitle">Latest date (€ millions)</p>
-        <div class="chart-wrap" style="height: 260px">
-          <canvas id="aum-bar-chart"></canvas>
+        <div class="overflow-x-auto -mx-1">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-200">
+                <th class="text-left font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">Provider</th>
+                <th class="text-left font-semibold text-slate-600 px-3 py-2">Fund Name</th>
+                <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">NAV (€)</th>
+                <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">Net Assets (€)</th>
+                <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">
+                  Change<br><span id="change-range" class="text-slate-400 font-normal text-xs"></span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="fund-table-body"></tbody>
+          </table>
         </div>
-      </div>
-
-      <!-- Performance % change -->
-      <div class="card p-4 sm:p-6">
-        <h2 class="text-base font-semibold text-slate-900 mb-1">NAV Performance</h2>
-        <p class="text-xs text-slate-400 mb-4" id="perf-subtitle">% change over tracked period</p>
-        <div class="chart-wrap" style="height: 260px">
-          <canvas id="perf-chart"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Fund Data Table ── -->
-    <div class="card p-4 sm:p-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
-          <h2 class="text-base font-semibold text-slate-900" id="table-title">All Funds — Latest Values</h2>
-          <p class="text-xs text-slate-400 mt-0.5">Sorted by provider · NAV and net assets</p>
-        </div>
-        <input id="table-filter" type="text" placeholder="Filter funds…"
-          class="w-full sm:w-64 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition" />
-      </div>
-      <div class="overflow-x-auto -mx-1">
-        <table class="min-w-full text-sm">
-          <thead>
-            <tr class="border-b border-slate-200">
-              <th class="text-left font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">Provider</th>
-              <th class="text-left font-semibold text-slate-600 px-3 py-2">Fund Name</th>
-              <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">NAV (€)</th>
-              <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">Net Assets (€)</th>
-              <th class="text-right font-semibold text-slate-600 px-3 py-2 whitespace-nowrap">
-                Change<br><span id="change-range" class="text-slate-400 font-normal text-xs"></span>
-              </th>
-            </tr>
-          </thead>
-          <tbody id="fund-table-body"></tbody>
-        </table>
       </div>
     </div>
 
@@ -214,12 +179,10 @@ const DEFAULT_COLORS = {
 // ── State ──────────────────────────────────────────────────────────────────
 let DATA = null;
 let navChart = null;
-let compChart = null;
 let aumDonut = null;
-let aumBar = null;
-let perfChart = null;
 let activeBucket = null;
-let activeDate = null;      // the selected "snapshot" date
+let activeDate = null;        // latest selected date — used for snapshot charts
+let selectedDates = new Set(); // dates shown on the NAV trend x-axis
 let hiddenProviders = new Set();
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -279,7 +242,7 @@ function baseScaleOptions() {
   };
 }
 
-// ── Date Filter Bar ────────────────────────────────────────────────────────
+// ── Date Filter Bar (multi-select) ────────────────────────────────────────
 function buildDateFilterBar() {
   const container = document.getElementById("date-filter-bar");
   container.innerHTML = "";
@@ -288,42 +251,48 @@ function buildDateFilterBar() {
     btn.className = "date-btn px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100";
     btn.textContent = date;
     btn.dataset.date = date;
-    if (date === selectedDate()) btn.classList.add("active");
+    if (selectedDates.has(date)) btn.classList.add("active");
     btn.addEventListener("click", () => {
+      if (selectedDates.has(date)) {
+        if (selectedDates.size > 1) selectedDates.delete(date); // keep at least 1
+      } else {
+        selectedDates.add(date);
+      }
+      // activeDate = most recently toggled-on date, or latest selected
       activeDate = date;
-      document.querySelectorAll(".date-btn").forEach(b => b.classList.toggle("active", b.dataset.date === date));
-      updateDateLabel();
+      if (!selectedDates.has(date)) {
+        const sorted = DATA.dates.filter(d => selectedDates.has(d));
+        activeDate = sorted[sorted.length - 1];
+      }
+      buildDateFilterBar();
       renderSnapshotCharts();
     });
     container.appendChild(btn);
   });
-  updateDateLabel();
-}
 
-function updateDateLabel() {
-  const el = document.getElementById("date-filter-label");
-  const sd = selectedDate();
-  const isLatest = sd === latestDate();
-  el.textContent = isLatest ? "Showing latest data" : `Showing data for ${sd}`;
+  document.getElementById("date-select-all").onclick = () => {
+    DATA.dates.forEach(d => selectedDates.add(d));
+    activeDate = latestDate();
+    buildDateFilterBar();
+    renderSnapshotCharts();
+  };
+  document.getElementById("date-clear-all").onclick = () => {
+    selectedDates.clear();
+    selectedDates.add(latestDate());
+    activeDate = latestDate();
+    buildDateFilterBar();
+    renderSnapshotCharts();
+  };
 }
 
 function renderSnapshotCharts() {
   const sd = selectedDate();
-  // Update subtitles
   document.getElementById("stat-aum-date").textContent     = sd;
   document.getElementById("aum-donut-subtitle").textContent = `${sd} — total net assets`;
-  document.getElementById("aum-bar-subtitle").textContent   = `${sd} (€ millions)`;
-  document.getElementById("comparison-subtitle").textContent = `All age buckets on ${sd} — grouped by bucket`;
-  document.getElementById("table-title").textContent        = `All Funds — ${sd}`;
-  // Update AUM stat card
   const totalAum = DATA.funds.reduce((s, f) => s + (f.assets[sd] || 0), 0);
   document.getElementById("stat-aum").textContent = "€" + fmtMillions(totalAum);
-  // Re-render all snapshot charts
-  renderNavTrendChart();   // to update the vertical marker
-  renderComparisonChart();
+  renderNavTrendChart();
   renderAumDonut();
-  renderAumBar();
-  renderPerfChart();
   renderFundTable(document.getElementById("table-filter").value);
 }
 
@@ -356,34 +325,10 @@ function buildBucketTabs() {
   });
 }
 
-// ── Provider Toggles ───────────────────────────────────────────────────────
-function buildProviderToggles() {
-  const container = document.getElementById("provider-toggles");
-  container.innerHTML = "";
-  DATA.providers.forEach(p => {
-    const btn = document.createElement("button");
-    const color = providerColor(p);
-    btn.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition";
-    btn.style.borderColor = color;
-    btn.style.color = hiddenProviders.has(p) ? "#94a3b8" : color;
-    btn.style.background = hiddenProviders.has(p) ? "#f8fafc" : hexToRgba(color, 0.08);
-    btn.innerHTML = `<span class="provider-dot" style="background:${color}"></span>${p}`;
-    btn.addEventListener("click", () => {
-      if (hiddenProviders.has(p)) hiddenProviders.delete(p);
-      else hiddenProviders.add(p);
-      buildProviderToggles();
-      renderComparisonChart();
-    });
-    container.appendChild(btn);
-  });
-}
-
 // ── NAV Trend Chart ────────────────────────────────────────────────────────
 function renderNavTrendChart() {
   const funds = fundsInBucket(activeBucket).filter(f => !hiddenProviders.has(f.provider));
-  const labels = DATA.dates;
-  const sd = selectedDate();
-  const selectedIdx = labels.indexOf(sd);
+  const labels = DATA.dates.filter(d => selectedDates.has(d));
 
   const datasets = funds.map(f => {
     const color = providerColor(f.provider);
@@ -393,9 +338,9 @@ function renderNavTrendChart() {
       borderColor: color,
       backgroundColor: hexToRgba(color, 0.08),
       borderWidth: 2.5,
-      pointRadius: labels.map((d, i) => i === selectedIdx ? 7 : 4),
+      pointRadius: 5,
       pointHoverRadius: 7,
-      pointBackgroundColor: labels.map((d, i) => i === selectedIdx ? color : "#fff"),
+      pointBackgroundColor: "#fff",
       pointBorderColor: color,
       pointBorderWidth: 2,
       tension: 0.35,
@@ -404,42 +349,17 @@ function renderNavTrendChart() {
     };
   });
 
-  // Vertical "selected date" line via a dummy dataset + afterDraw plugin
-  const verticalLinePlugin = {
-    id: "selectedDateLine",
-    afterDraw(chart) {
-      if (selectedIdx < 0) return;
-      const { ctx, chartArea, scales } = chart;
-      const x = scales.x.getPixelForValue(selectedIdx);
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(x, chartArea.top);
-      ctx.lineTo(x, chartArea.bottom);
-      ctx.strokeStyle = "rgba(15,23,42,0.18)";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.restore();
-    }
-  };
-
   const ctx = document.getElementById("nav-trend-chart");
   if (navChart) navChart.destroy();
   navChart = new Chart(ctx, {
     type: "line",
     data: { labels, datasets },
-    plugins: [verticalLinePlugin],
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: items => items[0]?.label + (items[0]?.label === sd ? " ◀ selected" : ""),
-            label: ctx => ` ${ctx.dataset.label}: ${fmtNav(ctx.parsed.y)}`,
-          }
-        }
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtNav(ctx.parsed.y)}` } }
       },
       scales: {
         x: { ...baseScaleOptions(), grid: { display: false } },
@@ -448,7 +368,7 @@ function renderNavTrendChart() {
     }
   });
 
-  // Custom legend
+  const sd = selectedDate();
   const legend = document.getElementById("nav-legend");
   legend.innerHTML = funds.map(f =>
     `<span class="flex items-center gap-1.5 text-xs text-slate-600">
@@ -459,50 +379,11 @@ function renderNavTrendChart() {
   ).join("");
 }
 
-// ── Cross-Provider Comparison Chart ────────────────────────────────────────
-function renderComparisonChart() {
-  const sd = selectedDate();
-  const buckets = (DATA.bucketOrder || []).filter(b => DATA.funds.some(f => f.bucket === b));
-  const bucketLabels = buckets.map(b => BUCKET_LABELS[b] || b);
+// ── Cross-Provider Comparison Chart ── REMOVED
+// ── AUM Bar Chart ── REMOVED
+// ── Performance Chart ── REMOVED
 
-  const providers = DATA.providers.filter(p => !hiddenProviders.has(p));
-  const datasets = providers.map(p => {
-    const color = providerColor(p);
-    return {
-      label: p,
-      data: buckets.map(b => {
-        const f = DATA.funds.find(f2 => f2.provider === p && f2.bucket === b);
-        return f ? (f.nav[sd] ?? null) : null;
-      }),
-      backgroundColor: hexToRgba(color, 0.80),
-      borderColor: color,
-      borderWidth: 1.5,
-      borderRadius: 4,
-      borderSkipped: false,
-    };
-  });
-
-  const ctx = document.getElementById("comparison-chart");
-  if (compChart) compChart.destroy();
-  compChart = new Chart(ctx, {
-    type: "bar",
-    data: { labels: bucketLabels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: { position: "top", labels: { usePointStyle: true, pointStyle: "circle", padding: 14, font: { size: 11 } } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtNav(ctx.parsed.y)}` } }
-      },
-      scales: {
-        x: { ...baseScaleOptions(), grid: { display: false } },
-        y: { ...baseScaleOptions(), beginAtZero: false, ticks: { ...baseScaleOptions().ticks, callback: v => v.toFixed(2) } }
-      }
-    }
-  });
-}
-
-// ── AUM Donut Chart ────────────────────────────────────────────────────────
+// ── Fund Table ─────────────────────────────────────────────────────────────
 function renderAumDonut() {
   const sd = selectedDate();
   const providerAum = DATA.providers.map(p => {
@@ -551,105 +432,6 @@ function renderAumDonut() {
         <span class="text-slate-500">€${fmtMillions(x.total)} <span class="text-slate-400">(${pct}%)</span></span>
       </div>`;
     }).join("");
-}
-
-// ── AUM Bar Chart ──────────────────────────────────────────────────────────
-function renderAumBar() {
-  const sd = selectedDate();
-  const providerAum = DATA.providers.map(p => ({
-    provider: p,
-    total: DATA.funds.filter(f => f.provider === p).reduce((s, f) => s + (f.assets[sd] || 0), 0),
-  })).filter(x => x.total > 0).sort((a, b) => b.total - a.total);
-
-  const ctx = document.getElementById("aum-bar-chart");
-  if (aumBar) aumBar.destroy();
-  aumBar = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: providerAum.map(x => x.provider),
-      datasets: [{
-        label: "AUM (€M)",
-        data: providerAum.map(x => x.total / 1e6),
-        backgroundColor: providerAum.map(x => providerColor(x.provider)),
-        borderRadius: 6,
-        borderSkipped: false,
-      }]
-    },
-    options: {
-      indexAxis: "y",
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` €${ctx.parsed.x.toFixed(0)}M` } }
-      },
-      scales: {
-        x: { ...baseScaleOptions(), ticks: { ...baseScaleOptions().ticks, callback: v => "€" + v + "M" } },
-        y: { ...baseScaleOptions(), grid: { display: false } },
-      }
-    }
-  });
-}
-
-// ── Performance Chart ──────────────────────────────────────────────────────
-function renderPerfChart() {
-  const first = firstDate();
-  const last  = selectedDate();
-  if (first === last) {
-    document.getElementById("perf-subtitle").textContent = "Select a different date to see % change";
-    const ctx = document.getElementById("perf-chart");
-    if (perfChart) perfChart.destroy();
-    ctx.getContext("2d").clearRect(0, 0, ctx.width, ctx.height);
-    perfChart = null;
-    return;
-  }
-  document.getElementById("perf-subtitle").textContent = `% NAV change  ${first} → ${last}`;
-
-  // Avg % change per bucket per provider
-  const buckets = (DATA.bucketOrder || []).filter(b =>
-    DATA.funds.some(f => f.bucket === b && f.nav[first] && f.nav[last])
-  );
-  const bucketLabels = buckets.map(b => BUCKET_LABELS[b] || b);
-
-  const datasets = DATA.providers.map(p => {
-    const color = providerColor(p);
-    return {
-      label: p,
-      data: buckets.map(b => {
-        const f = DATA.funds.find(f2 => f2.provider === p && f2.bucket === b);
-        if (!f || !f.nav[first] || !f.nav[last]) return null;
-        return ((f.nav[last] - f.nav[first]) / f.nav[first]) * 100;
-      }),
-      backgroundColor: providerAum => hexToRgba(color, 0.80),
-      borderColor: color,
-      borderWidth: 1,
-      borderRadius: 4,
-      borderSkipped: false,
-    };
-  });
-
-  // Flatten to get actual colors (resolve lambda)
-  datasets.forEach((d, i) => {
-    d.backgroundColor = hexToRgba(providerColor(DATA.providers[i]), 0.80);
-  });
-
-  const ctx = document.getElementById("perf-chart");
-  if (perfChart) perfChart.destroy();
-  perfChart = new Chart(ctx, {
-    type: "bar",
-    data: { labels: bucketLabels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: { position: "top", labels: { usePointStyle: true, pointStyle: "circle", padding: 12, font: { size: 11 } } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(3) + "%" : "n/a"}` } }
-      },
-      scales: {
-        x: { ...baseScaleOptions(), grid: { display: false } },
-        y: { ...baseScaleOptions(), ticks: { ...baseScaleOptions().ticks, callback: v => v.toFixed(2) + "%" } }
-      }
-    }
-  });
 }
 
 // ── Fund Table ─────────────────────────────────────────────────────────────
@@ -713,6 +495,7 @@ async function init() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     DATA = await res.json();
     activeDate = latestDate();
+    DATA.dates.forEach(d => selectedDates.add(d));
 
     document.getElementById("loading-state").classList.add("hidden");
     document.getElementById("dashboard").classList.remove("hidden");
@@ -720,12 +503,8 @@ async function init() {
     renderStats();
     buildDateFilterBar();
     buildBucketTabs();
-    buildProviderToggles();
     renderNavTrendChart();
-    renderComparisonChart();
     renderAumDonut();
-    renderAumBar();
-    renderPerfChart();
     renderFundTable("");
 
     document.getElementById("table-filter").addEventListener("input", e => renderFundTable(e.target.value));

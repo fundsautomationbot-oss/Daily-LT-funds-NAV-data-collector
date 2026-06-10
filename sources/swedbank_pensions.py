@@ -22,6 +22,47 @@ class SwedBankPerformanceScraper(BaseScraper):
     def get_url(self) -> str:
         return "https://www.swedbank.lt/private/pensions/pillar2/allFunds?language=LIT"
 
+    def normalize_date_text(self, value: str) -> str:
+        raw = " ".join(str(value).split())
+        if not raw:
+            return ""
+
+        # Support YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD.
+        m = re.search(r"(\d{4})[./-](\d{2})[./-](\d{2})", raw)
+        if m:
+            return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+
+        # Support DD-MM-YYYY and similar separators.
+        m = re.search(r"(\d{2})[./-](\d{2})[./-](\d{4})", raw)
+        if m:
+            return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+
+        return ""
+
+    def extract_page_report_date(self, page) -> str:
+        try:
+            body_text = " ".join(page.inner_text("body").split())
+        except Exception:
+            return ""
+
+        # Prefer dates that appear near labels like Data/Atnaujinta.
+        preferred = [
+            r"(?:Data|Atnaujinta|Paskutin(?:is|ė)\s+atnaujinimas)\D{0,30}(\d{4}[./-]\d{2}[./-]\d{2})",
+            r"(?:Data|Atnaujinta|Paskutin(?:is|ė)\s+atnaujinimas)\D{0,30}(\d{2}[./-]\d{2}[./-]\d{4})",
+        ]
+        for pattern in preferred:
+            match = re.search(pattern, body_text, flags=re.IGNORECASE)
+            if match:
+                normalized = self.normalize_date_text(match.group(1))
+                if normalized:
+                    return normalized
+
+        fallback = re.search(r"(\d{4}[./-]\d{2}[./-]\d{2})", body_text)
+        if fallback:
+            return self.normalize_date_text(fallback.group(1))
+
+        return ""
+
     def dismiss_cookie_modal(self, page):
         """Try to dismiss cookie consent so row links are clickable."""
         for _ in range(5):
@@ -99,6 +140,7 @@ class SwedBankPerformanceScraper(BaseScraper):
     def scrape_data(self, page) -> list:
         """Extract fund performance data from table."""
         results = []
+        page_report_date = self.extract_page_report_date(page)
         
         self.dismiss_cookie_modal(page)
         print("Waiting for table rows...")
@@ -120,9 +162,22 @@ class SwedBankPerformanceScraper(BaseScraper):
                     continue
                 if "tradicin" in fund_name.lower():
                     continue
+
+                # Date column position can shift; try the expected cell first, then scan row.
+                row_date = ""
+                if len(cells) > 3:
+                    row_date = self.normalize_date_text(cells[3].inner_text())
+                if not row_date:
+                    for cell in cells:
+                        row_date = self.normalize_date_text(cell.inner_text())
+                        if row_date:
+                            break
+                if not row_date:
+                    row_date = page_report_date
+
                 results.append({
                     "Fund name": " ".join(fund_name.split()),
-                    "Date": " ".join(cells[3].inner_text().split()),
+                    "Date": row_date,
                     "GAV": cells[4].inner_text().strip(),
                 })
 
