@@ -64,11 +64,13 @@ class SEBPensionsScraper(BaseScraper):
 
         # Extract year from the last full date on the page (most recent = today's date)
         year = None
+        page_date = None
         try:
             body = page.inner_text("body")
-            matches = re.findall(r"(\d{4})-\d{2}-\d{2}", body)
+            matches = re.findall(r"\d{4}-\d{2}-\d{2}", body)
             if matches:
-                year = matches[-1]  # last date is today's page timestamp
+                page_date = matches[-1]  # last date is today's page timestamp
+                year = page_date[:4]
         except Exception:
             pass
 
@@ -104,8 +106,11 @@ class SEBPensionsScraper(BaseScraper):
             date_raw = cells[5].inner_text().strip()
             data_date = None
             if year and re.match(r"\d{2}\.\d{2}", date_raw):
-                day, month = date_raw.split(".")
+                day, month = date_raw.split(".")[:2]
                 data_date = f"{year}-{month}-{day}"
+                # Table shows DD.MM only: early-January page with late-December NAVs.
+                if page_date and data_date > page_date:
+                    data_date = f"{int(year) - 1}-{month}-{day}"
 
             unit_value = cells[6].inner_text().strip()
 
@@ -118,6 +123,21 @@ class SEBPensionsScraper(BaseScraper):
                 "Vieneto vertė": unit_value,
                 "detail_href": detail_href,
             })
+
+        # The output filename uses the latest row date, so a table where SEB has
+        # updated only some funds would be published as a complete snapshot.
+        # Refuse to save until every II pillar fund is present with the same NAV date.
+        found_names = {fund["Fund name"] for fund in fund_data}
+        missing_funds = sorted(II_PILLAR_FUNDS - found_names)
+        nav_dates = {fund["Data"] for fund in fund_data}
+        if missing_funds or None in nav_dates or len(nav_dates) != 1:
+            print(
+                "  Incomplete SEB snapshot, not saving: "
+                f"missing funds={missing_funds}, NAV dates={sorted(str(d) for d in nav_dates)}"
+            )
+            for fund in fund_data:
+                print(f"    {fund['Fund name']}: {fund['Data']}")
+            return []
 
         # Pass 2: visit each detail page to get net assets
         base_url = "https://e.seb.lt/web/ipank.p"

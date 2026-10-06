@@ -734,7 +734,37 @@ def discover_latest_files_per_source():
             "Latest synchronized date is incomplete for providers: " + ", ".join(still_missing)
         )
 
+    # The filename date is only the latest row date, so verify the file itself
+    # holds a single NAV date (a provider may have updated only some funds).
+    for source_name, path in by_source.items():
+        nav_dates = read_nav_dates(path)
+        if len(nav_dates) > 1:
+            raise RuntimeError(
+                f"{source_name}: partial snapshot, mixed NAV dates {sorted(nav_dates)}"
+            )
+
     return by_source
+
+
+def read_nav_dates(path: Path) -> set:
+    """Return distinct YYYY-MM-DD values from the Data/Date column, ignoring closed 1954-1960 funds."""
+    df = pd.read_excel(path)
+    date_column = next((col for col in ("Data", "Date") if col in df.columns), None)
+    if date_column is None:
+        return set()
+
+    if "Fund name" in df.columns:
+        df = df[~df["Fund name"].astype(str).str.contains(r"1954-1960|54/60", case=False, regex=True)]
+
+    return set(
+        df[date_column]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .str.replace(r"[\s/.]", "-", regex=True)
+        .str.extract(r"(\d{4}-\d{2}-\d{2})", expand=False)
+        .dropna()
+    )
 
 
 def main():
